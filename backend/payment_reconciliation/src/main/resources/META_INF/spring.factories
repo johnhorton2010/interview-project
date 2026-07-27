@@ -1,0 +1,3 @@
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+  com.platinumrelations.interview.payment_reconciliation.reconciliation.exception.FeeScheduleFailureAnalyzer,\
+  com.platinumrelations.interview.payment_reconciliation.reconciliation.exception.HolidayDateParsingAnalyzer
