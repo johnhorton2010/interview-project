@@ -29,12 +29,13 @@ public class LedgerController {
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(
                             type = "object",
-                            example = """
+                            example =
+                                """
                                 {
                                   "TXN-000012" : "INSERTED_OR_UPDATED",
                                   "TXN-000083" : "NO_CHANGE"
                                 }
-                """
+                                """
                     )
             )
     )

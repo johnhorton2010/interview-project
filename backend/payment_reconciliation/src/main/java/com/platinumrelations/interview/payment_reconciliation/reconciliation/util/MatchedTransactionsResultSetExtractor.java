@@ -19,7 +19,7 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
     public TransactionMapping extractData(ResultSet rs) throws SQLException, DataAccessException {
         HashMap<InternalTransaction, Set<ProcessorSettlement>> itToPsMap = new HashMap<>();
         HashMap<ProcessorSettlement, Set<InternalTransaction>> psToItMap = new HashMap<>();
-        HashMap<String, TransactionPairing> orderRefToTransactionKeysMap = new HashMap<>();
+        HashMap<String, TransactionPairing> merchantRefToTransactionKeysMap = new HashMap<>();
 
         HashMap<String, InternalTransaction> itCache = new HashMap<>();
         HashMap<String, ProcessorSettlement> psCache = new HashMap<>();
@@ -72,13 +72,13 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
                 psCache.put(processorSettlement.networkRef(), processorSettlement);
             }
 
-            orderRefToTransactionKeysMap.computeIfAbsent(internalTransaction.merchantRef(), it -> new TransactionPairing()).getInternalTransactions().add(internalTransaction);
-            orderRefToTransactionKeysMap.get(internalTransaction.merchantRef()).getProcessorSettlements().add(processorSettlement);
+            merchantRefToTransactionKeysMap.computeIfAbsent(internalTransaction.merchantRef(), it -> new TransactionPairing()).getInternalTransactions().add(internalTransaction);
+            merchantRefToTransactionKeysMap.get(internalTransaction.merchantRef()).getProcessorSettlements().add(processorSettlement);
 
             itToPsMap.computeIfAbsent(internalTransaction, it -> new HashSet<>()).add(processorSettlement);
             psToItMap.computeIfAbsent(processorSettlement, ps -> new HashSet<>()).add(internalTransaction);
         }
 
-        return new TransactionMapping(itToPsMap, psToItMap, orderRefToTransactionKeysMap);
+        return new TransactionMapping(itToPsMap, psToItMap, merchantRefToTransactionKeysMap);
     }
 }

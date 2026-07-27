@@ -1,5 +1,6 @@
 package com.platinumrelations.interview.payment_reconciliation.processor.model;
 
+import com.fasterxml.jackson.annotation.JsonKey;
 import com.platinumrelations.interview.payment_reconciliation.core.util.BigDecimalDeserializer;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
@@ -14,7 +15,10 @@ import java.time.LocalDate;
 @Builder
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record ProcessorSettlement(
-        @EqualsAndHashCode.Include @NotBlank(message = "The networkRef field cannot be blank.") String networkRef,
+        @JsonKey
+        @EqualsAndHashCode.Include
+        @NotBlank(message = "The networkRef field cannot be blank.")
+        String networkRef,
         String merchantRef,
         String merchantId,
         Short cardLast4,

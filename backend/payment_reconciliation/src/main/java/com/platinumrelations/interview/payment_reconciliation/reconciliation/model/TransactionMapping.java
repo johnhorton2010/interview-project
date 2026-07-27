@@ -9,6 +9,6 @@ import java.util.Set;
 public record TransactionMapping(
         Map<InternalTransaction, Set<ProcessorSettlement>> internalTransactionToProcessorSettlementsMap,
         Map<ProcessorSettlement, Set<InternalTransaction>> processorSettlementToIternalTransactionsMap,
-        Map<String, TransactionPairing> orderRefToTransactionKeysMap) {
+        Map<String, TransactionPairing> merchantRefToTransactionKeysMap) {
 
 }

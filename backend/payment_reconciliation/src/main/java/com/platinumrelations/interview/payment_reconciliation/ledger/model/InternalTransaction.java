@@ -1,5 +1,6 @@
 package com.platinumrelations.interview.payment_reconciliation.ledger.model;
 
+import com.fasterxml.jackson.annotation.JsonKey;
 import com.platinumrelations.interview.payment_reconciliation.core.util.BigDecimalDeserializer;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
@@ -15,7 +16,10 @@ import java.time.Instant;
 @Builder
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record InternalTransaction(
-        @EqualsAndHashCode.Include @NotBlank(message = "The internalTxnId field cannot be blank.") String internalTxnId,
+        @JsonKey
+        @EqualsAndHashCode.Include
+        @NotBlank(message = "The internalTxnId field cannot be blank.")
+        String internalTxnId,
         String merchantId,
         String merchantRef,
         String cardType,

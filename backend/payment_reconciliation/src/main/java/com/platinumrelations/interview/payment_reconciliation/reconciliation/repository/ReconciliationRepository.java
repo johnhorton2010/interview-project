@@ -263,4 +263,21 @@ public class ReconciliationRepository {
                 .param("category", Category.IN_PROGRESS.name())
                 .query(new MatchedTransactionsResultSetExtractor());
     }
+
+    public TransactionMapping findAllReconciledTransactions(){
+        String sql = """
+                SELECT *
+                FROM   ledger AS led
+                       INNER JOIN reconciled_transactions AS rt
+                               ON led.internal_txn_id = rt.internal_txn_id
+                       INNER JOIN processor_settlement AS ps
+                               ON ps.network_ref = rt.network_ref
+                WHERE  category != :category
+                """;
+
+        return jdbcClient
+                .sql(sql)
+                .param("category", Category.IN_PROGRESS.name())
+                .query(new MatchedTransactionsResultSetExtractor());
+    }
 }
