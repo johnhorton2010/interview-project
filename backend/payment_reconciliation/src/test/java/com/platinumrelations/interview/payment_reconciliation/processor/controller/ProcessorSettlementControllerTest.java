@@ -44,7 +44,7 @@ public class ProcessorSettlementControllerTest {
                 .networkRef("ARN74000000000000075752")
                 .merchantRef("ORD-002-88193")
                 .merchantId("MERCH-002")
-                .cardLast4((short) 6408)
+                .cardLast4("6408")
                 .cardType(CardType.AMEX.name())
                 .settledAmount(new BigDecimal("606.29"))
                 .interchangeFee(new BigDecimal("19.85"))

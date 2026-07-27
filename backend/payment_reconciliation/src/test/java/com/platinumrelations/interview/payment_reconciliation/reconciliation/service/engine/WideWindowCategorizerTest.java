@@ -23,7 +23,7 @@ public class WideWindowCategorizerTest {
     @BeforeEach
     void setUp() {
         String holidayCsvStr = "2026-01-01,2026-01-19,2026-02-16,2026-05-25,2026-06-19,2026-07-04,2026-09-07,2026-08-12,2026-11-26,2026-12-25";
-        wideWindowCategorizer = new WideWindowCategorizer((short) 5, List.of(holidayCsvStr.split(",")));
+        wideWindowCategorizer = new WideWindowCategorizer(5, List.of(holidayCsvStr.split(",")));
     }
 
     @Test
@@ -158,6 +158,6 @@ public class WideWindowCategorizerTest {
     @Tag("skipSetUp")
     void hasWideWindow_throwsException_whenDatePropertyIsMangled(){
         String holidayCsvStr = "tthththt2026-01-01,2026-01-19,2026-02-16,2026-05-25,2026-06-19,2026-07-04,2026-09-07,2026-08-12,2026-11-26,2026-12-25";
-        assertThrows(HolidayDateParsingException.class, () -> new WideWindowCategorizer((short) 5, List.of(holidayCsvStr.split(","))));
+        assertThrows(HolidayDateParsingException.class, () -> new WideWindowCategorizer(5, List.of(holidayCsvStr.split(","))));
     }
 }

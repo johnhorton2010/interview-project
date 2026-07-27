@@ -61,7 +61,7 @@ public class ProcessorSettlementController {
                                                   "network_ref" : "ARN74000000000000075752",
                                                   "merchant_ref" : "ORD-002-88193",
                                                   "merchant_id" : "MERCH-002",
-                                                  "card_last4" : 6408,
+                                                  "card_last4" : "6408",
                                                   "card_type" : "AMEX",
                                                   "settled_amount" : 606.29,
                                                   "interchange_fee" : 1.93,

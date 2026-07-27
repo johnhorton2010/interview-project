@@ -16,7 +16,7 @@ import java.util.List;
 @Service
 class WideWindowCategorizer {
 
-    WideWindowCategorizer(@Value("${app.custom.wide-window.max-days}") Short windowMaxDays, @Value("${app.custom.holidays}") List<String> holidays){
+    WideWindowCategorizer(@Value("${app.custom.wide-window.max-days}") int windowMaxDays, @Value("${app.custom.holidays}") List<String> holidays){
         this.windowMaxDays = windowMaxDays;
 
         this.holidays = new ArrayList<>();
@@ -32,7 +32,7 @@ class WideWindowCategorizer {
         }
     }
 
-    private final short windowMaxDays;
+    private final int windowMaxDays;
     private final List<LocalDate> holidays;
 
     boolean hasWideWindow(InternalTransaction it, ProcessorSettlement ps){

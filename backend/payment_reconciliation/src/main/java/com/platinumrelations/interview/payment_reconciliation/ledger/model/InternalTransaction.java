@@ -23,7 +23,7 @@ public record InternalTransaction(
         String merchantId,
         String merchantRef,
         String cardType,
-        Short cardLast4,
+        String cardLast4,
         @JsonDeserialize(using = BigDecimalDeserializer.class) BigDecimal grossAmount,
         String currency,
         String type,

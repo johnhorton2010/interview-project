@@ -69,7 +69,7 @@ public class ReconciliationControllerTest {
                 .merchantId("MERCH-006")
                 .merchantRef("ORD-006-29772")
                 .cardType(CardType.MASTERCARD.name())
-                .cardLast4((short) 1241)
+                .cardLast4("1241")
                 .grossAmount(new BigDecimal("351.60"))
                 .currency(Currency.USD.name())
                 .type(Type.SALE.name())
@@ -80,7 +80,7 @@ public class ReconciliationControllerTest {
                 .networkRef("ARN74000000000000048583")
                 .merchantRef("ORD-006-29772")
                 .merchantId("MERCH-006")
-                .cardLast4((short) 1241)
+                .cardLast4("1241")
                 .cardType(CardType.MASTERCARD.name())
                 .settledAmount(new BigDecimal("343.72"))
                 .interchangeFee(new BigDecimal("6.78"))
@@ -111,7 +111,7 @@ public class ReconciliationControllerTest {
                             "TXN-000002" : [ {
                               "merchant_ref" : "ORD-006-29772",
                               "merchant_id" : "MERCH-006",
-                              "card_last4" : 1241,
+                              "card_last4" : "1241",
                               "card_type" : "MASTERCARD",
                               "settled_amount" : 343.72,
                               "interchange_fee" : 6.78,
@@ -125,7 +125,7 @@ public class ReconciliationControllerTest {
                               "merchant_id" : "MERCH-006",
                               "merchant_ref" : "ORD-006-29772",
                               "card_type" : "MASTERCARD",
-                              "card_last4" : 1241,
+                              "card_last4" : "1241",
                               "gross_amount" : 351.6,
                               "currency" : "USD",
                               "type" : "SALE",

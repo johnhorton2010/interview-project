@@ -25,7 +25,7 @@ public class DuplicateCategorizerTest {
         ProcessorSettlement ps1 = ProcessorSettlement
                 .builder()
                 .networkRef("ps1")
-                .cardLast4((short)1256)
+                .cardLast4("1256")
                 .cardType(CardType.VISA.name())
                 .currency(Currency.USD.name())
                 .interchangeFee(new BigDecimal("5.00"))
@@ -38,7 +38,7 @@ public class DuplicateCategorizerTest {
         ProcessorSettlement ps2 = ProcessorSettlement
                 .builder()
                 .networkRef("ps2")
-                .cardLast4((short)1256)
+                .cardLast4("1256")
                 .cardType(CardType.VISA.name())
                 .currency(Currency.USD.name())
                 .interchangeFee(new BigDecimal("5.00"))
@@ -59,7 +59,7 @@ public class DuplicateCategorizerTest {
         ProcessorSettlement ps1 = ProcessorSettlement
                 .builder()
                 .networkRef("ps1")
-                .cardLast4((short)1256)
+                .cardLast4("1256")
                 .cardType(CardType.VISA.name())
                 .currency(Currency.USD.name())
                 .interchangeFee(new BigDecimal("5.00"))
@@ -72,7 +72,7 @@ public class DuplicateCategorizerTest {
         ProcessorSettlement ps2 = ProcessorSettlement
                 .builder()
                 .networkRef("ps2")
-                .cardLast4((short)999)
+                .cardLast4("9999")
                 .cardType(CardType.VISA.name())
                 .currency(Currency.USD.name())
                 .interchangeFee(new BigDecimal("5.00"))

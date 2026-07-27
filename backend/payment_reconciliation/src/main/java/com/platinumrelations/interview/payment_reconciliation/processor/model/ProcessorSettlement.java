@@ -21,7 +21,7 @@ public record ProcessorSettlement(
         String networkRef,
         String merchantRef,
         String merchantId,
-        Short cardLast4,
+        String cardLast4,
         String cardType,
         @JsonDeserialize(using = BigDecimalDeserializer.class) BigDecimal settledAmount,
         @JsonDeserialize(using = BigDecimalDeserializer.class) BigDecimal interchangeFee,
