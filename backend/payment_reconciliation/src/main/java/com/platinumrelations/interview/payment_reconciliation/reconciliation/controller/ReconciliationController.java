@@ -50,6 +50,7 @@ public class ReconciliationController {
                                 {
                                   "internalTransactionToProcessorSettlementsMap" : {
                                     "TXN-000002" : [ {
+                                      "network_ref" : "ARN74000000000000048583",
                                       "merchant_ref" : "ORD-006-29772",
                                       "merchant_id" : "MERCH-006",
                                       "card_last4" : 1241,
@@ -63,6 +64,7 @@ public class ReconciliationController {
                                   },
                                   "processorSettlementToIternalTransactionsMap" : {
                                     "ARN74000000000000048583" : [ {
+                                      "internal_txn_id" : "TXN-000002",
                                       "merchant_id" : "MERCH-006",
                                       "merchant_ref" : "ORD-006-29772",
                                       "card_type" : "MASTERCARD",
