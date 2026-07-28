@@ -19,7 +19,7 @@ public class InternalTransactionSetToKeySerializer extends ValueSerializer<Colle
 
         gen.writeStartArray();
         for(InternalTransaction it : value){
-            gen.writeString(it.internalTxnId());
+            gen.writeString(it.getInternalTxnId());
         }
 
         gen.writeEndArray();

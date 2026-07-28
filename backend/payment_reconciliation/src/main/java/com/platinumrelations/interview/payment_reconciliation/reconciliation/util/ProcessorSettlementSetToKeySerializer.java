@@ -18,7 +18,7 @@ public class ProcessorSettlementSetToKeySerializer extends ValueSerializer<Colle
 
         gen.writeStartArray();
         for(ProcessorSettlement ps : value){
-            gen.writeString(ps.networkRef());
+            gen.writeString(ps.getNetworkRef());
         }
 
         gen.writeEndArray();

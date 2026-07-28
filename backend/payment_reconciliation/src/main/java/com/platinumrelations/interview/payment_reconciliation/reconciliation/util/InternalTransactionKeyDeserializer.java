@@ -15,6 +15,6 @@ public class InternalTransactionKeyDeserializer extends ValueSerializer<Internal
             return;
         }
 
-        gen.writeName (value.internalTxnId());
+        gen.writeName (value.getInternalTxnId());
     }
 }

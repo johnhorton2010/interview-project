@@ -13,7 +13,7 @@ class DuplicateCategorizer {
 
     Set<ProcessorSettlement> findDuplicateProcessorSettlements(Set<ProcessorSettlement> psSet){
         // TreeSet allows for a custom comparator and as a set will fail to add non unique objects
-        TreeSet<ProcessorSettlement> psTreeSet = new TreeSet<>(ProcessorSettlementComparator.compareWithoutNetworkRef);
+        TreeSet<ProcessorSettlement> psTreeSet = new TreeSet<>(ProcessorSettlementComparator.compareWithoutNetworkRefAndCategory);
         Set<ProcessorSettlement> duplicateProcessorSettlements = new HashSet<>();
         for(ProcessorSettlement ps : psSet){
             if(!psTreeSet.add(ps)){

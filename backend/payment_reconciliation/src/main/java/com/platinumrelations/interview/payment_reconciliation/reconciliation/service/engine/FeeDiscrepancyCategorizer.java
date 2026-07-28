@@ -19,7 +19,7 @@ class FeeDiscrepancyCategorizer {
     // settled_amount = gross − reported_interchange − reported_processor_fee
     // reported_interchange and reported process fee do not match fee schedule
     boolean hasFeeDiscrepancy(InternalTransaction it, ProcessorSettlement ps){
-        if(it.type().equals(Type.REFUND.name())) {
+        if(it.getType().equals(Type.REFUND.name())) {
             return Boolean.FALSE;
         }
 
@@ -29,8 +29,8 @@ class FeeDiscrepancyCategorizer {
         }
 
         boolean hasInterchangeFeeMismatch = (feeCalculator
-                .computeInterchangeFee(it.cardType(), it.grossAmount())
-                .compareTo(ps.interchangeFee())) != 0;
+                .computeInterchangeFee(it.getCardType(), it.getGrossAmount())
+                .compareTo(ps.getInterchangeFee())) != 0;
 
         if(hasInterchangeFeeMismatch){
             return Boolean.TRUE;
@@ -38,7 +38,7 @@ class FeeDiscrepancyCategorizer {
 
         // is checking whether there is a processor fee mismatch and returns the result as this is the final condition
         return (feeCalculator
-                .computeProcessorFee(it.grossAmount())
-                .compareTo(ps.processorFee())) != 0;
+                .computeProcessorFee(it.getGrossAmount())
+                .compareTo(ps.getProcessorFee())) != 0;
     }
 }

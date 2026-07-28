@@ -91,7 +91,7 @@ public class LedgerRepository {
                 rowStatus = RowStatus.NO_CHANGE;
             }
 
-            batchUpdateMapping.put(it.internalTxnId(), rowStatus);
+            batchUpdateMapping.put(it.getInternalTxnId(), rowStatus);
         }
 
         return batchUpdateMapping;

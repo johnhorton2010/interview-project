@@ -34,7 +34,21 @@ public class LedgerService {
     }
 
     private @Valid List<InternalTransaction> parseCsv(MultipartFile file) {
-            CsvSchema schema = new CsvMapper().schemaFor(InternalTransaction.class).withHeader().withColumnReordering(true);
+            CsvSchema schema = CsvSchema
+                    .builder()
+                    .addColumn("internal_txn_id")
+                    .addColumn("merchant_id")
+                    .addColumn("merchant_ref")
+                    .addColumn("card_type")
+                    .addColumn("card_last4")
+                    .addColumn("gross_amount")
+                    .addColumn("currency")
+                    .addColumn("type")
+                    .addColumn("captured_at")
+                    .setUseHeader(true)
+                    .build()
+                    .withColumnReordering(true);
+
             CsvMapper csvMapper = new CsvMapper();
 
         try (InputStream fileInputStream = file.getInputStream()){

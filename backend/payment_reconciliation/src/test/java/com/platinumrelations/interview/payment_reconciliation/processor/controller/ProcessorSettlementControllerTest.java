@@ -78,7 +78,7 @@ public class ProcessorSettlementControllerTest {
                 """;
 
         HashMap<String, RowStatus> expectedResult = new HashMap<>();
-        expectedResult.put(ps.networkRef(), RowStatus.INSERTED_OR_UPDATED);
+        expectedResult.put(ps.getNetworkRef(), RowStatus.INSERTED_OR_UPDATED);
 
         when(processorSettlementService.bulkCreateProcessorSettlements(any())).thenReturn(expectedResult);
 

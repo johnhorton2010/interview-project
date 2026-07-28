@@ -6,14 +6,14 @@ import java.util.Comparator;
 
 public class ProcessorSettlementComparator {
 
-    public static final Comparator<ProcessorSettlement> compareWithoutNetworkRef = Comparator
-            .comparing(ProcessorSettlement::merchantRef)
-            .thenComparing(ProcessorSettlement::merchantId)
-            .thenComparing(ProcessorSettlement::cardLast4)
-            .thenComparing(ProcessorSettlement::cardType)
-            .thenComparing(ProcessorSettlement::settledAmount)
-            .thenComparing(ProcessorSettlement::interchangeFee)
-            .thenComparing(ProcessorSettlement::processorFee)
-            .thenComparing(ProcessorSettlement::currency)
-            .thenComparing(ProcessorSettlement::settlementDate);
+    public static final Comparator<ProcessorSettlement> compareWithoutNetworkRefAndCategory = Comparator
+            .comparing(ProcessorSettlement::getMerchantRef)
+            .thenComparing(ProcessorSettlement::getMerchantId)
+            .thenComparing(ProcessorSettlement::getCardLast4)
+            .thenComparing(ProcessorSettlement::getCardType)
+            .thenComparing(ProcessorSettlement::getSettledAmount)
+            .thenComparing(ProcessorSettlement::getInterchangeFee)
+            .thenComparing(ProcessorSettlement::getProcessorFee)
+            .thenComparing(ProcessorSettlement::getCurrency)
+            .thenComparing(ProcessorSettlement::getSettlementDate);
 }

@@ -41,22 +41,22 @@ class SingleSettlementCoordinator {
             ProcessorSettlement ps = psList.iterator().next();
 
             if(amountMismatchCategorizer.hasAmountMismatch(it, ps)){
-                reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.AMOUNT_MISMATCH.name()));
+                reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.AMOUNT_MISMATCH.name()));
                 return;
             }
 
             if(feeDiscrepancyCategorizer.hasFeeDiscrepancy(it, ps)){
-                reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.FEE_DISCREPANCY.name()));
+                reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.FEE_DISCREPANCY.name()));
                 return;
             }
 
             if(wideWindowCategorizer.hasWideWindow(it,ps)){
-                reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.WIDE_WINDOW.name()));
+                reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.WIDE_WINDOW.name()));
                 return;
             }
 
             // determined to be a clean match by exclusion of all the other categories
-            reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.CLEAN_MATCH.name()));
+            reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.CLEAN_MATCH.name()));
         });
 
         return reconciliationRepository.saveAll(reconList);

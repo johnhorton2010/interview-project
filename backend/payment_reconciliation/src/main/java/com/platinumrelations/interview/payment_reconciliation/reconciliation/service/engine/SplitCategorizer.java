@@ -28,11 +28,11 @@ class SplitCategorizer {
 
         // Going to make a basic assumption that ALL remaining add up to the gross amount(within tolerance)
         // NOT checking if any combination of remaining exists that add up to the gross amount(within tolerance)
-        BigDecimal expectedSettlement = feeCalculator.computeExpectedSettlement(it.cardType(), it.grossAmount());
+        BigDecimal expectedSettlement = feeCalculator.computeExpectedSettlement(it.getCardType(), it.getGrossAmount());
         BigDecimal potentialSplitTotal = BigDecimal.ZERO;
 
         for(ProcessorSettlement ps : potentialSplitProcessorSettlements){
-            potentialSplitTotal = potentialSplitTotal.add(ps.settledAmount());
+            potentialSplitTotal = potentialSplitTotal.add(ps.getSettledAmount());
         }
 
         // If the total calculated is within tolerance than the settlements are a split of the ledger transaciton

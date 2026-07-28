@@ -47,41 +47,43 @@ public class ReconciliationController {
                     schema = @Schema(
                             type = "object",
                             example = """
-                                {
-                                  "internalTransactionToProcessorSettlementsMap" : {
-                                    "TXN-000002" : [ {
-                                      "network_ref" : "ARN74000000000000048583",
-                                      "merchant_ref" : "ORD-006-29772",
-                                      "merchant_id" : "MERCH-006",
-                                      "card_last4" : 1241,
-                                      "card_type" : "MASTERCARD",
-                                      "settled_amount" : 343.72,
-                                      "interchange_fee" : 6.78,
-                                      "processor_fee" : 1.1,
-                                      "currency" : "USD",
-                                      "settlement_date" : "2026-06-08"
-                                    } ]
-                                  },
-                                  "processorSettlementToIternalTransactionsMap" : {
-                                    "ARN74000000000000048583" : [ {
-                                      "internal_txn_id" : "TXN-000002",
-                                      "merchant_id" : "MERCH-006",
-                                      "merchant_ref" : "ORD-006-29772",
-                                      "card_type" : "MASTERCARD",
-                                      "card_last4" : 1241,
-                                      "gross_amount" : 351.6,
-                                      "currency" : "USD",
-                                      "type" : "SALE",
-                                      "captured_at" : "2026-06-06T00:00:00Z"
-                                    } ]
-                                  },
-                                  "merchantRefToTransactionKeysMap" : {
-                                    "ORD-006-29772" : {
-                                      "internalTransactions" : [ "TXN-000002" ],
-                                      "processorSettlements" : [ "ARN74000000000000048583" ]
-                                    }
-                                  }
-                                }
+                        {
+                          "internalTransactionToProcessorSettlementsMap" : {
+                            "TXN-000002" : [ {
+                              "network_ref" : "ARN74000000000000048583",
+                              "merchant_ref" : "ORD-006-29772",
+                              "merchant_id" : "MERCH-006",
+                              "card_last4" : "1241",
+                              "card_type" : "MASTERCARD",
+                              "settled_amount" : 343.72,
+                              "interchange_fee" : 6.78,
+                              "processor_fee" : 1.1,
+                              "currency" : "USD",
+                              "settlement_date" : "2026-06-08",
+                              "category" : "CLEAN_MATCH"
+                            } ]
+                          },
+                          "processorSettlementToIternalTransactionsMap" : {
+                            "ARN74000000000000048583" : [ {
+                              "internal_txn_id" : "TXN-000002",
+                              "merchant_id" : "MERCH-006",
+                              "merchant_ref" : "ORD-006-29772",
+                              "card_type" : "MASTERCARD",
+                              "card_last4" : "1241",
+                              "gross_amount" : 351.6,
+                              "currency" : "USD",
+                              "type" : "SALE",
+                              "captured_at" : "2026-06-06T00:00:00Z",
+                              "category" : "CLEAN_MATCH"
+                            } ]
+                          },
+                          "merchantRefToTransactionKeysMap" : {
+                            "ORD-006-29772" : {
+                              "internalTransactions" : [ "TXN-000002" ],
+                              "processorSettlements" : [ "ARN74000000000000048583" ]
+                            }
+                          }
+                        }
                         """
                     )
             )

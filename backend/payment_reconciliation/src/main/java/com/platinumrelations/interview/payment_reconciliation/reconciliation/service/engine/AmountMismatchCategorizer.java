@@ -19,7 +19,7 @@ class AmountMismatchCategorizer {
     // principal off beyond rounding
     // settled_amount != gross − reported_interchange − reported_processor_fee
     boolean hasAmountMismatch(InternalTransaction it, ProcessorSettlement ps){
-        BigDecimal calcSettlement = feeCalculator.computeExpectedSettlement(it.grossAmount(), ps.interchangeFee(), ps.processorFee());
-        return !feeCalculator.isWithinTolerance(ps.settledAmount(), calcSettlement);
+        BigDecimal calcSettlement = feeCalculator.computeExpectedSettlement(it.getGrossAmount(), ps.getInterchangeFee(), ps.getProcessorFee());
+        return !feeCalculator.isWithinTolerance(ps.getSettledAmount(), calcSettlement);
     }
 }

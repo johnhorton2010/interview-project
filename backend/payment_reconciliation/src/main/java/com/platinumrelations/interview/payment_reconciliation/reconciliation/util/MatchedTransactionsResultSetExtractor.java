@@ -8,6 +8,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ResultSetExtractor;
 
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
             if(cachedIt != null){
                 internalTransaction = cachedIt;
             }else {
+                String categoryStr = retrieveCategoryStrOrNull(rs);
                 internalTransaction = InternalTransaction
                         .builder()
                         .internalTxnId(curRowItId)
@@ -43,9 +45,10 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
                         .currency(rs.getString("currency"))
                         .type(rs.getString("type"))
                         .capturedAt(rs.getTimestamp("captured_at").toInstant())
+                        .category(categoryStr)
                         .build();
 
-                itCache.put(internalTransaction.internalTxnId(), internalTransaction);
+                itCache.put(internalTransaction.getInternalTxnId(), internalTransaction);
             }
 
             String curRowPsId = rs.getString("network_ref");
@@ -55,6 +58,7 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
             if(cachedPs != null){
                 processorSettlement = cachedPs;
             }else {
+                String categoryStr = retrieveCategoryStrOrNull(rs);
                 processorSettlement = ProcessorSettlement
                         .builder()
                         .networkRef(curRowPsId)
@@ -67,18 +71,29 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
                         .processorFee(rs.getBigDecimal("processor_fee"))
                         .currency(rs.getString("currency"))
                         .settlementDate(rs.getDate("settlement_date").toLocalDate())
+                        .category(categoryStr)
                         .build();
 
-                psCache.put(processorSettlement.networkRef(), processorSettlement);
+                psCache.put(processorSettlement.getNetworkRef(), processorSettlement);
             }
 
-            merchantRefToTransactionKeysMap.computeIfAbsent(internalTransaction.merchantRef(), it -> new TransactionPairing()).getInternalTransactions().add(internalTransaction);
-            merchantRefToTransactionKeysMap.get(internalTransaction.merchantRef()).getProcessorSettlements().add(processorSettlement);
+            merchantRefToTransactionKeysMap.computeIfAbsent(internalTransaction.getMerchantRef(), it -> new TransactionPairing()).getInternalTransactions().add(internalTransaction);
+            // Operating under the assumption that the ledger will always have the merchant ref while processor settlement may be blank
+            merchantRefToTransactionKeysMap.get(internalTransaction.getMerchantRef()).getProcessorSettlements().add(processorSettlement);
 
             itToPsMap.computeIfAbsent(internalTransaction, it -> new HashSet<>()).add(processorSettlement);
             psToItMap.computeIfAbsent(processorSettlement, ps -> new HashSet<>()).add(internalTransaction);
         }
 
         return new TransactionMapping(itToPsMap, psToItMap, merchantRefToTransactionKeysMap);
+    }
+
+    private String retrieveCategoryStrOrNull(ResultSet rs){
+        try {
+            return rs.getString("category");
+        } catch (SQLException ex){
+            // Category will not always be present in all queries using this resultSetExtractor so returning null is acceptable
+            return null;
+        }
     }
 }

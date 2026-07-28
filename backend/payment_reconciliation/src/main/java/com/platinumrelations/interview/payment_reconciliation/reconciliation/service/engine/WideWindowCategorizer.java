@@ -37,12 +37,12 @@ class WideWindowCategorizer {
 
     boolean hasWideWindow(InternalTransaction it, ProcessorSettlement ps){
         // Assuming that we are using eastern time  for buisness days in alignment with the federal reserve and major banks
-        LocalDate curDate = it.capturedAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
+        LocalDate curDate = it.getCapturedAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
 
         // Starting at t+1
         curDate = curDate.plusDays(1);
         int buisnessDaysCount = 0;
-        while (curDate.isBefore(ps.settlementDate()) && buisnessDaysCount <= windowMaxDays){
+        while (curDate.isBefore(ps.getSettlementDate()) && buisnessDaysCount <= windowMaxDays){
             DayOfWeek dayOfWeek = curDate.getDayOfWeek();
 
             boolean isWeekend = (dayOfWeek == DayOfWeek.SATURDAY) || (dayOfWeek == DayOfWeek.SUNDAY);

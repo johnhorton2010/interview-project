@@ -37,12 +37,12 @@ class MultiSettlementCoordinator {
 
             Set<ProcessorSettlement> duplicateProcessorSettlements = duplicateCategorizer.findDuplicateProcessorSettlements(psSet);
             for(ProcessorSettlement ps : duplicateProcessorSettlements){
-                reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.DUPLICATE.name()));
+                reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.DUPLICATE.name()));
             }
 
             Set<ProcessorSettlement> splitProcessorSettlement = splitCategorizer.findSplitProcessorSettlements(it, psSet);
             for(ProcessorSettlement ps : splitProcessorSettlement){
-                reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.SPLIT.name()));
+                reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.SPLIT.name()));
             }
         });
 

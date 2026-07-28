@@ -86,7 +86,7 @@ public class ProcessorSettlementRepository {
                 rowStatus = RowStatus.NO_CHANGE;
             }
 
-            batchUpdateMapping.put(ps.networkRef(), rowStatus);
+            batchUpdateMapping.put(ps.getNetworkRef(), rowStatus);
         }
 
         return batchUpdateMapping;

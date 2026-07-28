@@ -15,6 +15,6 @@ public class ProcessorSettlementKeyDeserializer extends ValueSerializer<Processo
             return;
         }
 
-        gen.writeName (value.networkRef());
+        gen.writeName (value.getNetworkRef());
     }
 }

@@ -5,6 +5,7 @@ import com.platinumrelations.interview.payment_reconciliation.core.model.Currenc
 import com.platinumrelations.interview.payment_reconciliation.ledger.model.InternalTransaction;
 import com.platinumrelations.interview.payment_reconciliation.ledger.model.Type;
 import com.platinumrelations.interview.payment_reconciliation.processor.model.ProcessorSettlement;
+import com.platinumrelations.interview.payment_reconciliation.reconciliation.model.Category;
 import com.platinumrelations.interview.payment_reconciliation.reconciliation.model.TransactionMapping;
 import com.platinumrelations.interview.payment_reconciliation.reconciliation.model.TransactionPairing;
 import com.platinumrelations.interview.payment_reconciliation.reconciliation.service.ReconciliationService;
@@ -74,6 +75,7 @@ public class ReconciliationControllerTest {
                 .currency(Currency.USD.name())
                 .type(Type.SALE.name())
                 .capturedAt(LocalDate.of(2026, 6, 6).atStartOfDay(ZoneId.of("UTC")).toInstant())
+                .category(Category.CLEAN_MATCH.name())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -87,6 +89,7 @@ public class ReconciliationControllerTest {
                 .processorFee(new BigDecimal("1.10"))
                 .currency(Currency.USD.name())
                 .settlementDate(LocalDate.of(2026,6,8))
+                .category(Category.CLEAN_MATCH.name())
                 .build();
 
         TransactionPairing transactionPairing = new TransactionPairing();
@@ -95,7 +98,7 @@ public class ReconciliationControllerTest {
 
         itToPsMap.put(it, new HashSet<>(List.of(ps)));
         psToItMap.put(ps, new HashSet<>(List.of(it)));
-        orderRefToTransactionKeysMap.put(it.merchantRef(), transactionPairing);
+        orderRefToTransactionKeysMap.put(it.getMerchantRef(), transactionPairing);
 
         TransactionMapping transactionMapping = new TransactionMapping(itToPsMap, psToItMap, orderRefToTransactionKeysMap);
 
@@ -118,7 +121,8 @@ public class ReconciliationControllerTest {
                               "interchange_fee" : 6.78,
                               "processor_fee" : 1.1,
                               "currency" : "USD",
-                              "settlement_date" : "2026-06-08"
+                              "settlement_date" : "2026-06-08",
+                              "category" : "CLEAN_MATCH"
                             } ]
                           },
                           "processorSettlementToIternalTransactionsMap" : {
@@ -131,7 +135,8 @@ public class ReconciliationControllerTest {
                               "gross_amount" : 351.6,
                               "currency" : "USD",
                               "type" : "SALE",
-                              "captured_at" : "2026-06-06T00:00:00Z"
+                              "captured_at" : "2026-06-06T00:00:00Z",
+                              "category" : "CLEAN_MATCH"
                             } ]
                           },
                           "merchantRefToTransactionKeysMap" : {

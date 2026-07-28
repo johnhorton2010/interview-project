@@ -43,14 +43,14 @@ class InProgressCategorizer {
             for(ProcessorSettlement ps : entry.getValue()){
                 // Is the settlement positive for a sale and negative for a refund?
                 boolean isTransactionPairingPotentiallyValid =
-                        (it.type().equals(Type.SALE.name()) && ps.settledAmount().compareTo(BigDecimal.ZERO) >= 0) ||
-                                (it.type().equals(Type.REFUND.name()) && ps.settledAmount().compareTo(BigDecimal.ZERO) < 0);
+                        (it.getType().equals(Type.SALE.name()) && ps.getSettledAmount().compareTo(BigDecimal.ZERO) >= 0) ||
+                                (it.getType().equals(Type.REFUND.name()) && ps.getSettledAmount().compareTo(BigDecimal.ZERO) < 0);
 
                 if(isTransactionPairingPotentiallyValid){
-                    BigDecimal expectedSettlement = feeCalculator.computeExpectedSettlement(it.cardType(), it.grossAmount());
+                    BigDecimal expectedSettlement = feeCalculator.computeExpectedSettlement(it.getCardType(), it.getGrossAmount());
 
-                    if(feeCalculator.isWithinTolerance(ps.settledAmount(), expectedSettlement)){
-                        reconList.add(new ReconciledTransaction(it.internalTxnId(), ps.networkRef(), Category.IN_PROGRESS.name()));
+                    if(feeCalculator.isWithinTolerance(ps.getSettledAmount(), expectedSettlement)){
+                        reconList.add(new ReconciledTransaction(it.getInternalTxnId(), ps.getNetworkRef(), Category.IN_PROGRESS.name()));
                     }
                 }
             }
