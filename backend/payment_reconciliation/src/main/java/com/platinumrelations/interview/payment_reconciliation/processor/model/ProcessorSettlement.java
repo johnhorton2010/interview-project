@@ -32,6 +32,5 @@ public class ProcessorSettlement{
         BigDecimal processorFee;
         String currency;
         LocalDate settlementDate;
-        @Schema(accessMode = Schema.AccessMode.READ_ONLY)
         String category;
 }
