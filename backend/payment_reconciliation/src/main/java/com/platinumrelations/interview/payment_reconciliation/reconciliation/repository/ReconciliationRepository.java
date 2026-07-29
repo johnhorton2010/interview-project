@@ -123,7 +123,7 @@ public class ReconciliationRepository {
         String sql = """
                SELECT led.internal_txn_id AS led_internal_txn_id,
                       led.merchant_id     AS led_merchant_id,
-                      led.merchant_ref    AS led_mechant_ref,
+                      led.merchant_ref    AS led_merchant_ref,
                       led.card_type       AS led_card_type,
                       led.card_last4      AS led_card_last4,
                       led.gross_amount    AS led_gross_amount,
@@ -158,20 +158,20 @@ public class ReconciliationRepository {
 
     public int createReconciledTransactionWithUnmatchedInternalFromLedger(){
         String sql = """
-                        MERGE INTO reconciled_transactions AS rt
-                        using (SELECT led.internal_txn_id
-                               FROM   ledger AS led
-                                      LEFT JOIN reconciled_transactions AS rt
-                                             ON led.internal_txn_id = rt.internal_txn_id
-                               WHERE  rt.internal_txn_id IS NULL) AS src
-                        ON rt.internal_txn_id = src.internal_txn_id
-                        WHEN NOT matched THEN
-                          INSERT (internal_txn_id,
-                                  network_ref,
-                                  category)
-                          VALUES (src.internal_txn_id,
-                                  NULL,
-                                  :category)
+                MERGE INTO reconciled_transactions AS rt
+                using (SELECT led.internal_txn_id
+                       FROM   ledger AS led
+                              LEFT JOIN reconciled_transactions AS rt
+                                     ON led.internal_txn_id = rt.internal_txn_id
+                       WHERE  rt.internal_txn_id IS NULL) AS src
+                ON rt.internal_txn_id = src.internal_txn_id
+                WHEN NOT matched THEN
+                  INSERT (internal_txn_id,
+                          network_ref,
+                          category)
+                  VALUES (src.internal_txn_id,
+                          NULL,
+                          :category)
                 """;
 
         return jdbcClient
@@ -205,20 +205,20 @@ public class ReconciliationRepository {
 
     public int createReconciledTransactionWithUnmatchedSettlementFromProcessorSettlement(){
         String sql = """
-                    MERGE INTO reconciled_transactions AS rt
-                    using (SELECT ps.network_ref
-                           FROM   processor_settlement AS ps
-                                  LEFT JOIN reconciled_transactions AS rt
-                                         ON ps.network_ref = rt.network_ref
-                           WHERE  rt.network_ref IS NULL) AS src
-                    ON rt.network_ref = src.network_ref
-                    WHEN NOT matched THEN
-                      INSERT (internal_txn_id,
-                              network_ref,
-                              category)
-                      VALUES (NULL,
-                              src.network_ref,
-                              :category)
+                MERGE INTO reconciled_transactions AS rt
+                using (SELECT ps.network_ref
+                       FROM   processor_settlement AS ps
+                              LEFT JOIN reconciled_transactions AS rt
+                                     ON ps.network_ref = rt.network_ref
+                       WHERE  rt.network_ref IS NULL) AS src
+                ON rt.network_ref = src.network_ref
+                WHEN NOT matched THEN
+                  INSERT (internal_txn_id,
+                          network_ref,
+                          category)
+                  VALUES (NULL,
+                          src.network_ref,
+                          :category)
                 """;
 
         return jdbcClient.sql(sql).param("category", Category.UNMATCHED_SETTLEMENT.name()).update();
@@ -226,20 +226,20 @@ public class ReconciliationRepository {
 
     public int createReconciledTransactionWithQuarantineFromProcessorSettlement(){
         String sql = """
-                    MERGE INTO reconciled_transactions AS rt
-                   using (SELECT network_ref
-                          FROM   processor_settlement
-                          WHERE  network_ref LIKE 'ARNBAD%'
-                                  OR merchant_ref LIKE 'ORD-BAD-%') AS src
-                   ON rt.network_ref = src.network_ref
-                   WHEN NOT matched THEN
-                     INSERT (internal_txn_id,
-                             network_ref,
-                             category)
-                     VALUES (NULL,
-                             src.network_ref,
-                             :category)
-                """;
+                MERGE INTO reconciled_transactions AS rt
+               using (SELECT network_ref
+                      FROM   processor_settlement
+                      WHERE  network_ref LIKE 'ARNBAD%'
+                              OR merchant_ref LIKE 'ORD-BAD-%') AS src
+               ON rt.network_ref = src.network_ref
+               WHEN NOT matched THEN
+                 INSERT (internal_txn_id,
+                         network_ref,
+                         category)
+                 VALUES (NULL,
+                         src.network_ref,
+                         :category)
+               """;
 
         return jdbcClient
                 .sql(sql)
@@ -249,7 +249,29 @@ public class ReconciliationRepository {
 
     public TransactionMapping findMatchedTransactionsInProgress(){
         String sql = """
-                SELECT *
+                SELECT
+                      rt.id,
+                      rt.internal_txn_id,
+                      rt.network_ref,
+                      -- ledger side
+                      led.merchant_id  AS led_merchant_id,
+                      led.merchant_ref AS led_merchant_ref,
+                      led.card_type    AS led_card_type,
+                      led.card_last4   AS led_card_last4,
+                      led.currency     AS led_currency,
+                      led.gross_amount AS led_gross_amount,
+                      led.type         AS led_type,
+                      led.captured_at  AS led_captured_at,
+                      -- settlement side
+                      ps.merchant_id     AS ps_merchant_id,
+                      ps.merchant_ref    AS ps_merchant_ref,
+                      ps.card_type       AS ps_card_type,
+                      ps.card_last4      AS ps_card_last4,
+                      ps.currency        AS ps_currency,
+                      ps.settled_amount  AS ps_settled_amount,
+                      ps.interchange_fee AS ps_interchange_fee,
+                      ps.processor_fee   AS ps_processor_fee,
+                      ps.settlement_date AS ps_settlement_date
                 FROM   ledger AS led
                        INNER JOIN reconciled_transactions AS rt
                                ON led.internal_txn_id = rt.internal_txn_id
@@ -266,13 +288,36 @@ public class ReconciliationRepository {
 
     public TransactionMapping findAllReconciledTransactions(){
         String sql = """
-                SELECT *
-                FROM   ledger AS led
-                       INNER JOIN reconciled_transactions AS rt
-                               ON led.internal_txn_id = rt.internal_txn_id
-                       INNER JOIN processor_settlement AS ps
-                               ON ps.network_ref = rt.network_ref
-                WHERE  category != :category
+                SELECT    rt.id,
+                          rt.category,
+                          rt.internal_txn_id,
+                          rt.network_ref,
+                          -- ledger side
+                          led.merchant_id  AS led_merchant_id,
+                          led.merchant_ref AS led_merchant_ref,
+                          led.card_type    AS led_card_type,
+                          led.card_last4   AS led_card_last4,
+                          led.currency     AS led_currency,
+                          led.gross_amount AS led_gross_amount,
+                          led.type         AS led_type,
+                          led.captured_at  AS led_captured_at,
+                          -- settlement side
+                          ps.merchant_id     AS ps_merchant_id,
+                          ps.merchant_ref    AS ps_merchant_ref,
+                          ps.card_type       AS ps_card_type,
+                          ps.card_last4      AS ps_card_last4,
+                          ps.currency        AS ps_currency,
+                          ps.settled_amount  AS ps_settled_amount,
+                          ps.interchange_fee AS ps_interchange_fee,
+                          ps.processor_fee   AS ps_processor_fee,
+                          ps.settlement_date AS ps_settlement_date
+                FROM      reconciled_transactions rt
+                LEFT JOIN ledger led
+                ON        led.internal_txn_id = rt.internal_txn_id
+                LEFT JOIN processor_settlement ps
+                ON        ps.network_ref = rt.network_ref
+                WHERE     rt.category IS distinct
+                FROM      'IN_PROGRESS'
                 """;
 
         return jdbcClient

@@ -13,7 +13,7 @@ public record TransactionMapping(
         @JsonSerialize(keyUsing = InternalTransactionKeyDeserializer.class)
         Map<InternalTransaction, Set<ProcessorSettlement>> internalTransactionToProcessorSettlementsMap,
         @JsonSerialize(keyUsing = ProcessorSettlementKeyDeserializer.class)
-        Map<ProcessorSettlement, Set<InternalTransaction>> processorSettlementToIternalTransactionsMap,
+        Map<ProcessorSettlement, Set<InternalTransaction>> processorSettlementToInternalTransactionsMap,
         Map<String, TransactionPairing> merchantRefToTransactionKeysMap) {
 
 }

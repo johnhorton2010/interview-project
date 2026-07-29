@@ -26,7 +26,27 @@ public class LedgerRepository {
 
     public TransactionMapping findByBackupIdentification(){
         String sql = """
-                SELECT *
+                SELECT
+                          led.internal_txn_id AS internal_txn_id,
+                          led.merchant_id  AS led_merchant_id,
+                          led.merchant_ref AS led_merchant_ref,
+                          led.card_type    AS led_card_type,
+                          led.card_last4   AS led_card_last4,
+                          led.currency     AS led_currency,
+                          led.gross_amount AS led_gross_amount,
+                          led.type         AS led_type,
+                          led.captured_at  AS led_captured_at,
+                          -- settlement side
+                          ps.network_ref     AS network_ref,
+                          ps.merchant_id     AS ps_merchant_id,
+                          ps.merchant_ref    AS ps_merchant_ref,
+                          ps.card_type       AS ps_card_type,
+                          ps.card_last4      AS ps_card_last4,
+                          ps.currency        AS ps_currency,
+                          ps.settled_amount  AS ps_settled_amount,
+                          ps.interchange_fee AS ps_interchange_fee,
+                          ps.processor_fee   AS ps_processor_fee,
+                          ps.settlement_date AS ps_settlement_date
                 FROM   processor_settlement AS ps
                        JOIN ledger AS led
                          ON ps.merchant_id = led.merchant_id

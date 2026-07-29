@@ -63,7 +63,7 @@ public class ReconciliationController {
                               "category" : "CLEAN_MATCH"
                             } ]
                           },
-                          "processorSettlementToIternalTransactionsMap" : {
+                          "processorSettlementToInternalTransactionsMap" : {
                             "ARN74000000000000048583" : [ {
                               "internal_txn_id" : "TXN-000002",
                               "merchant_id" : "MERCH-006",

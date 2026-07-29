@@ -10,11 +10,11 @@ public class InternalTransactionKeyDeserializer extends ValueSerializer<Internal
 
     @Override
     public void serialize(InternalTransaction value, JsonGenerator gen, SerializationContext ctxt) throws JacksonException {
-        if(value == null){
-            gen.writeNull();
+        if(value == null || value.getInternalTxnId() == null){
+            gen.writeName("null");
             return;
         }
 
-        gen.writeName (value.getInternalTxnId());
+        gen.writeName(value.getInternalTxnId());
     }
 }

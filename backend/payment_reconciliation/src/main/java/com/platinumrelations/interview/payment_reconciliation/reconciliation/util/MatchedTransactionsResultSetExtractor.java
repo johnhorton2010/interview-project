@@ -7,11 +7,12 @@ import com.platinumrelations.interview.payment_reconciliation.reconciliation.mod
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ResultSetExtractor;
 
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
+import java.sql.*;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor<TransactionMapping> {
@@ -27,62 +28,102 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
 
         while (rs.next()){
             String curRowItId = rs.getString("internal_txn_id");
-            InternalTransaction cachedIt = itCache.get(curRowItId);
+            InternalTransaction internalTransaction = null;
+            if(curRowItId != null) {
+                InternalTransaction cachedIt = itCache.get(curRowItId);
 
-            InternalTransaction internalTransaction;
-            if(cachedIt != null){
-                internalTransaction = cachedIt;
-            }else {
-                String categoryStr = retrieveCategoryStrOrNull(rs);
-                internalTransaction = InternalTransaction
-                        .builder()
-                        .internalTxnId(curRowItId)
-                        .merchantId(rs.getString("merchant_id"))
-                        .merchantRef(rs.getString("merchant_ref"))
-                        .cardType(rs.getString("card_type"))
-                        .cardLast4(rs.getString("card_last4"))
-                        .grossAmount(rs.getBigDecimal("gross_amount"))
-                        .currency(rs.getString("currency"))
-                        .type(rs.getString("type"))
-                        .capturedAt(rs.getTimestamp("captured_at").toInstant())
-                        .category(categoryStr)
-                        .build();
+                if (cachedIt != null) {
+                    internalTransaction = cachedIt;
+                } else {
+                    String categoryStr = retrieveCategoryStrOrNull(rs);
 
-                itCache.put(internalTransaction.getInternalTxnId(), internalTransaction);
+                    Instant capturedAt;
+                    Timestamp capturedAtSqlTimestamp = rs.getTimestamp("led_captured_at");
+                    if (capturedAtSqlTimestamp == null) {
+                        capturedAt = null;
+                    } else {
+                        capturedAt = capturedAtSqlTimestamp.toInstant();
+                    }
+
+                    internalTransaction = InternalTransaction
+                            .builder()
+                            .internalTxnId(curRowItId)
+                            .merchantId(rs.getString("led_merchant_id"))
+                            .merchantRef(rs.getString("led_merchant_ref"))
+                            .cardType(rs.getString("led_card_type"))
+                            .cardLast4(rs.getString("led_card_last4"))
+                            .grossAmount(rs.getBigDecimal("led_gross_amount"))
+                            .currency(rs.getString("led_currency"))
+                            .type(rs.getString("led_type"))
+                            .capturedAt(capturedAt)
+                            .category(categoryStr)
+                            .build();
+
+                    itCache.put(internalTransaction.getInternalTxnId(), internalTransaction);
+                }
             }
 
             String curRowPsId = rs.getString("network_ref");
-            ProcessorSettlement cachedPs = psCache.get(curRowPsId);
+            ProcessorSettlement processorSettlement = null;
+            if(curRowPsId != null) {
+                ProcessorSettlement cachedPs = psCache.get(curRowPsId);
 
-            ProcessorSettlement processorSettlement;
-            if(cachedPs != null){
-                processorSettlement = cachedPs;
-            }else {
-                String categoryStr = retrieveCategoryStrOrNull(rs);
-                processorSettlement = ProcessorSettlement
-                        .builder()
-                        .networkRef(curRowPsId)
-                        .merchantRef(rs.getString("merchant_ref"))
-                        .merchantId(rs.getString("merchant_id"))
-                        .cardLast4(rs.getString("card_last4"))
-                        .cardType(rs.getString("card_type"))
-                        .settledAmount(rs.getBigDecimal("settled_amount"))
-                        .interchangeFee(rs.getBigDecimal("interchange_fee"))
-                        .processorFee(rs.getBigDecimal("processor_fee"))
-                        .currency(rs.getString("currency"))
-                        .settlementDate(rs.getDate("settlement_date").toLocalDate())
-                        .category(categoryStr)
-                        .build();
+                if (cachedPs != null) {
+                    processorSettlement = cachedPs;
+                } else {
+                    String categoryStr = retrieveCategoryStrOrNull(rs);
 
-                psCache.put(processorSettlement.getNetworkRef(), processorSettlement);
+                    LocalDate settlementDate;
+                    Date settlementSqlDate = rs.getDate("ps_settlement_date");
+                    if (settlementSqlDate == null) {
+                        settlementDate = null;
+                    } else {
+                        settlementDate = settlementSqlDate.toLocalDate();
+                    }
+
+                    processorSettlement = ProcessorSettlement
+                            .builder()
+                            .networkRef(curRowPsId)
+                            .merchantRef(rs.getString("ps_merchant_ref"))
+                            .merchantId(rs.getString("ps_merchant_id"))
+                            .cardLast4(rs.getString("ps_card_last4"))
+                            .cardType(rs.getString("ps_card_type"))
+                            .settledAmount(rs.getBigDecimal("ps_settled_amount"))
+                            .interchangeFee(rs.getBigDecimal("ps_interchange_fee"))
+                            .processorFee(rs.getBigDecimal("ps_processor_fee"))
+                            .currency(rs.getString("ps_currency"))
+                            .settlementDate(settlementDate)
+                            .category(categoryStr)
+                            .build();
+
+                    psCache.put(processorSettlement.getNetworkRef(), processorSettlement);
+                }
             }
 
-            merchantRefToTransactionKeysMap.computeIfAbsent(internalTransaction.getMerchantRef(), it -> new TransactionPairing()).getInternalTransactions().add(internalTransaction);
-            // Operating under the assumption that the ledger will always have the merchant ref while processor settlement may be blank
-            merchantRefToTransactionKeysMap.get(internalTransaction.getMerchantRef()).getProcessorSettlements().add(processorSettlement);
+            // merchantRefToTransactionKeysMap
+            if(internalTransaction != null) {
+                merchantRefToTransactionKeysMap.computeIfAbsent(internalTransaction.getMerchantRef(), it -> new TransactionPairing()).getInternalTransactions().add(internalTransaction);
 
-            itToPsMap.computeIfAbsent(internalTransaction, it -> new HashSet<>()).add(processorSettlement);
-            psToItMap.computeIfAbsent(processorSettlement, ps -> new HashSet<>()).add(internalTransaction);
+                if(processorSettlement != null) {
+                    merchantRefToTransactionKeysMap.computeIfAbsent(internalTransaction.getMerchantRef(), it -> new TransactionPairing()).getProcessorSettlements().add(processorSettlement);
+                }
+            }else if(processorSettlement != null){
+                merchantRefToTransactionKeysMap.computeIfAbsent(processorSettlement.getMerchantRef(), it -> new TransactionPairing()).getProcessorSettlements().add(processorSettlement);
+            }
+
+            // itToPsMap
+            if(internalTransaction != null) {
+                itToPsMap.computeIfAbsent(internalTransaction, it -> new HashSet<>()).add(processorSettlement);
+            }else {
+                itToPsMap.computeIfAbsent(InternalTransaction.builder().internalTxnId("null").build(), it -> new HashSet<>()).add(processorSettlement);
+            }
+
+            // psToItMap
+            if(processorSettlement != null) {
+                psToItMap.computeIfAbsent(processorSettlement, ps -> new HashSet<>()).add(internalTransaction);
+            }else{
+                psToItMap.computeIfAbsent(ProcessorSettlement.builder().networkRef("null").build(), ps -> new HashSet<>()).add(internalTransaction);
+            }
         }
 
         return new TransactionMapping(itToPsMap, psToItMap, merchantRefToTransactionKeysMap);

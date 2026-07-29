@@ -10,8 +10,8 @@ public class ProcessorSettlementKeyDeserializer extends ValueSerializer<Processo
 
     @Override
     public void serialize(ProcessorSettlement value, JsonGenerator gen, SerializationContext ctxt) throws JacksonException {
-        if(value == null){
-            gen.writeNull();
+        if(value == null || value.getNetworkRef() == null){
+            gen.writeName("null");
             return;
         }
 
