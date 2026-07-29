@@ -1,0 +1,49 @@
+/* Global resets and keyframes, ported from the design's <helmet> block. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f1f3f6;
+}
+
+body {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: #2f5fd0;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #21449b;
+  text-decoration: underline;
+}
+
+input,
+button,
+select {
+  font-family: inherit;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
