@@ -1,22 +1,10 @@
 import React, { useRef } from 'react';
+import { LEDGER, SETTLEMENT, quarantineReason } from '../../domain/quarantine.js';
 import { fmt, dec, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2 } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
-import { GhostButton } from '../common.jsx';
-
-// The backend does not return a reason string; derive a best-effort explanation
-// from the record itself so the analyst knows why it was withheld.
-function ledgerReason(l) {
-  if (!l.cardType) return 'Missing card type — required field absent.';
-  if (l.gross === null) return 'Gross amount not a parseable number.';
-  if (l.currency && l.currency !== 'USD') return `Currency ${l.currency} — non-USD records are always quarantined.`;
-  return 'Failed validation.';
-}
-function settleReason(s) {
-  if (s.settled === null) return 'Settled amount omitted by the processor.';
-  if (s.currency && s.currency !== 'USD') return `Currency ${s.currency} — non-USD records are always quarantined.`;
-  return 'Failed validation.';
-}
+import { GhostButton, HoverRow } from '../common.jsx';
+import QuarantineDetail from '../QuarantineDetail.jsx';
 
 // `reason` follows a right-aligned column, so useColumns pads it automatically to
 // keep that boundary from pinching to bare gap.
@@ -26,18 +14,24 @@ const SPEC = [
   { key: 'merchant', min: 72 },
   { key: 'amount', min: 64, align: 'right' },
   { key: 'reason', min: 200 },
+  // `reason` is left-aligned, so its own trailing void already supplies this gutter —
+  // the caret must not claim slack of its own on top of it (see styles/columns.js).
+  { key: 'caret', min: 8, fixed: true, align: 'right' },
 ];
 
-export default function QuarantineTab({ model, flash }) {
+export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
   const tableRef = useRef(null);
   const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC);
+  // Expansion keys are prefixed by side: `expanded` is shared with Breaks and
+  // Transactions, and a bare ledger id or network ref could collide with a ReconRow id
+  // owned by one of them.
   const rows = model.ledger
     .filter((l) => l.category === 'QUARANTINE')
-    .map((l) => ({ side: 'Ledger', id: l.id, merchantId: l.merchantId, amount: l.gross === null ? '—' : fmt(l.gross), raw: l.gross, reason: ledgerReason(l) }))
+    .map((l) => ({ key: `q:ledger:${l.id}`, rec: l, side: LEDGER, id: l.id, merchantId: l.merchantId, amount: l.gross === null ? '—' : fmt(l.gross), raw: l.gross, reason: quarantineReason(l, LEDGER).text }))
     .concat(
       model.settle
         .filter((x) => x.category === 'QUARANTINE')
-        .map((x) => ({ side: 'Settlement', id: x.ref, merchantId: x.merchantId, amount: x.settled === null ? '—' : fmt(x.settled), raw: x.settled, reason: settleReason(x) })),
+        .map((x) => ({ key: `q:settle:${x.ref}`, rec: x, side: SETTLEMENT, id: x.ref, merchantId: x.merchantId, amount: x.settled === null ? '—' : fmt(x.settled), raw: x.settled, reason: quarantineReason(x, SETTLEMENT).text })),
     );
 
   const exportCsv = () => {
@@ -55,7 +49,7 @@ export default function QuarantineTab({ model, flash }) {
         <div>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Quarantined records</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7b8697' }}>
-            Failed validation and excluded from every figure on this report. Fix at source and re-import — there is no reset endpoint in v1.
+            Failed validation and excluded from every figure on this report. Click a row to see the record and the field that failed. Fix at source, then reset and re-import.
           </p>
         </div>
         <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
@@ -68,17 +62,32 @@ export default function QuarantineTab({ model, flash }) {
           <span role="columnheader">Merchant</span>
           <span role="columnheader" style={cell('amount')}>Amount</span>
           <span role="columnheader" style={cell('reason')}>Why it was withheld</span>
+          <span role="columnheader" />
         </div>
         {rows.length === 0 && <div style={{ padding: '22px 18px', color: '#9aa3b0' }}>Nothing quarantined — every record passed validation.</div>}
-        {rows.map((r, i) => (
-          <div key={i} role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '10px 18px', borderBottom: `1px solid ${C.rowRule}`, fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}>
-            <span role="cell" style={{ fontFamily: SANS, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>{r.side}</span>
-            <span role="cell" style={{ color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.id}</span>
-            <span role="cell" style={{ color: INK2 }}>{r.merchantId}</span>
-            <span role="cell" style={{ ...cell('amount'), whiteSpace: 'nowrap', color: INK }}>{r.amount}</span>
-            <span role="cell" style={{ ...cell('reason'), fontFamily: SANS, color: INK2, fontSize: 12, textWrap: 'pretty' }}>{r.reason}</span>
-          </div>
-        ))}
+        {rows.map((r) => {
+          const open = expanded === r.key;
+          // Hover lives on the wrapper so the cells and the expanded detail tint
+          // together as one row, matching the Breaks and Transactions tables.
+          return (
+            <HoverRow key={r.key} style={{ borderBottom: `1px solid ${C.rowRule}` }} hoverStyle={{ background: C.hover }}>
+              <div
+                role="row"
+                aria-expanded={open}
+                onClick={() => setExpanded(open ? null : r.key)}
+                style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '10px 18px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}
+              >
+                <span role="cell" style={{ fontFamily: SANS, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>{r.side}</span>
+                <span role="cell" style={{ color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.id}</span>
+                <span role="cell" style={{ color: INK2 }}>{r.merchantId}</span>
+                <span role="cell" style={{ ...cell('amount'), whiteSpace: 'nowrap', color: INK }}>{r.amount}</span>
+                <span role="cell" style={{ ...cell('reason'), fontFamily: SANS, color: INK2, fontSize: 12, textWrap: 'pretty' }}>{r.reason}</span>
+                <span role="cell" aria-hidden="true" style={{ ...cell('caret'), color: '#9aa3b0', alignSelf: 'center' }}>{open ? '▴' : '▾'}</span>
+              </div>
+              {open && <QuarantineDetail rec={r.rec} side={r.side} />}
+            </HoverRow>
+          );
+        })}
       </div>
     </section>
   );

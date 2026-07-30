@@ -134,6 +134,7 @@ export default function App() {
       scrollTabs();
     },
     toQuarantine: () => {
+      setExpanded(null);
       setTab('quarantine');
       scrollTabs();
     },

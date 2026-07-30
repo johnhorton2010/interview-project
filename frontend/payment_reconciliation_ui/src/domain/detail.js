@@ -8,7 +8,12 @@ import { INK, INK2, NEG, POS, SEV_COLOR, SEV_BG, SEV_BORDER } from '../styles/to
 
 const MUTED = '#7b8697';
 
-function fieldRow(label, value, mono, diff) {
+/**
+ * One label/value line in a detail panel. `diff` draws the amber highlight the
+ * design uses to point at a field that disagrees with the other side — the
+ * quarantine detail reuses it to point at the field that failed validation.
+ */
+export function fieldRow(label, value, mono, diff) {
   return {
     label,
     value,

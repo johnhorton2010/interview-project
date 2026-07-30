@@ -159,7 +159,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setM
       {tab === 'merchants' && <MerchantTable model={model} nav={nav} mr={mr} setMr={setMr} flash={flash} />}
       {tab === 'breaks' && <BreaksTab model={model} br={br} setBr={setBr} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
       {tab === 'transactions' && <TransactionsTab model={model} tx={tx} setTx={setTx} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
-      {tab === 'quarantine' && <QuarantineTab model={model} flash={flash} />}
+      {tab === 'quarantine' && <QuarantineTab model={model} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
     </main>
   );
 }
