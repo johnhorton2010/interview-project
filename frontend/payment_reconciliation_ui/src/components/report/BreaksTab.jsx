@@ -123,6 +123,22 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
   if (merchantFilter) filterBits.push('merchant: ' + merchantFilter);
   if (query.trim()) filterBits.push('search: "' + query.trim() + '"');
 
+  // Totals cover the rows on screen, not every break: this table is the most heavily
+  // filtered in the app, so a total that ignored the filters would mislead. Each row is
+  // one ReconRow, so a plain sum is correct — no per-settlement double counting here.
+  const t = filtered.reduce(
+    (a, r) => ({
+      sales: a.sales + (saleOf(r) || 0),
+      refunds: a.refunds + (refundOf(r) || 0),
+      fees: a.fees + r.rowFees,
+      expected: a.expected + r.rowExpected,
+      settled: a.settled + r.rowActual,
+      impact: a.impact + r.rowImpact,
+    }),
+    { sales: 0, refunds: 0, fees: 0, expected: 0, settled: 0, impact: 0 },
+  );
+  const totalImpactColor = t.impact === 0 ? INK2 : t.impact < 0 ? NEG : POS;
+
   // Deep link to the open row, matching the design footer's right span.
   const deepLink = expanded ? `/report/breaks/${expanded}` : '/report/breaks';
 
@@ -343,6 +359,24 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
               </HoverRow>
             );
           })}
+
+          {/* Money cells go through `cell(key)` like the body rows, so the total lines up
+              with the columns rather than merely being right-aligned. Dates get no total. */}
+          {filtered.length > 0 && (
+            <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 16px', borderTop: `1px solid ${C.borderStrong}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+              <span role="cell" style={{ fontFamily: SANS, fontSize: 12, whiteSpace: 'nowrap' }}>
+                {filtered.length < breaks.length ? `Total — ${filtered.length} of ${breaks.length} breaks` : 'Total'}
+              </span>
+              <span /><span />
+              <span role="cell" style={{ ...cell('sales'), whiteSpace: 'nowrap' }}>{fmt(t.sales)}</span>
+              <span role="cell" style={{ ...cell('refunds'), whiteSpace: 'nowrap', color: t.refunds === 0 ? undefined : NEG }}>{fmt(t.refunds)}</span>
+              <span role="cell" style={{ ...cell('fees'), whiteSpace: 'nowrap', color: INK2 }}>{fmt(t.fees)}</span>
+              <span role="cell" style={{ ...cell('expected'), whiteSpace: 'nowrap' }}>{fmt(t.expected)}</span>
+              <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap' }}>{fmt(t.settled)}</span>
+              <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', color: totalImpactColor }}>{sfmt(t.impact)}</span>
+              <span /><span /><span />
+            </div>
+          )}
         </div>
         <div style={{ padding: '11px 16px', borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceAlt, borderRadius: '0 0 8px 8px', fontSize: 11, color: '#9aa3b0', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span>{filtered.length} of {breaks.length} breaks · sorted by {sortLabel}</span>
