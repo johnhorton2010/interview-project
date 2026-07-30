@@ -116,4 +116,15 @@ public class LedgerRepository {
 
         return batchUpdateMapping;
     }
+
+    public int deleteAll(){
+        String sql = """
+                DELETE
+                FROM ledger
+                """;
+
+        return jdbcClient
+                .sql(sql)
+                .update();
+    }
 }

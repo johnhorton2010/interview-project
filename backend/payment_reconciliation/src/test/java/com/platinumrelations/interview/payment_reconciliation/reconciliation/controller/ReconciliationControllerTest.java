@@ -17,7 +17,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
-import tools.jackson.databind.ObjectMapper;
 
 
 import java.math.BigDecimal;
@@ -147,5 +146,24 @@ public class ReconciliationControllerTest {
                           }
                         }
                         """);
+    }
+
+    @Test
+    void deleteAllReconciledTransactions_200_happyPath() {
+        String responseJson = """
+                {
+                    "record_count" : 21
+                }
+                """;
+
+        int deletedCount = 21;
+
+        when(reconciliationService.removeAllExistingReconciledTransactions()).thenReturn(deletedCount);
+
+        assertThat(mockMvcTester.delete().uri(reconciliationsUri))
+                .hasStatusOk()
+                .hasContentType(MediaType.APPLICATION_JSON)
+                .bodyJson()
+                .isStrictlyEqualTo(responseJson);
     }
 }

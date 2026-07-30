@@ -91,4 +91,15 @@ public class ProcessorSettlementRepository {
 
         return batchUpdateMapping;
     }
+
+    public int deleteAll(){
+        String sql = """
+                DELETE
+                FROM processor_settlement
+                """;
+
+        return jdbcClient
+                .sql(sql)
+                .update();
+    }
 }

@@ -16,4 +16,8 @@ public class ReconciliationService {
     public TransactionMapping retrieveAllReconciledTransactions(){
         return reconciliationRepository.findAllReconciledTransactions();
     }
+
+    public int removeAllExistingReconciledTransactions(){
+        return reconciliationRepository.deleteAll();
+    }
 }

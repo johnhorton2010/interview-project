@@ -63,4 +63,23 @@ public class LedgerControllerTest {
                 .bodyJson()
                 .isStrictlyEqualTo(responseJson);
     }
+
+    @Test
+    void deleteAllLedgerTransactions_200_happyPath() {
+        String responseJson = """
+                {
+                    "record_count" : 17
+                }
+                """;
+
+        int deletedCount = 17;
+
+        when(ledgerService.removeAllExistingInternalTransactions()).thenReturn(deletedCount);
+
+        assertThat(mockMvcTester.delete().uri(ledgerTransactionsUri))
+                .hasStatusOk()
+                .hasContentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyJson()
+                .isStrictlyEqualTo(responseJson);
+    }
 }

@@ -58,4 +58,8 @@ public class LedgerService {
             throw new LedgerCsvParsingException(message, ex);
         }
     }
+
+    public int removeAllExistingInternalTransactions(){
+        return ledgerRepository.deleteAll();
+    }
 }

@@ -1,5 +1,6 @@
 package com.platinumrelations.interview.payment_reconciliation.processor.controller;
 
+import com.platinumrelations.interview.payment_reconciliation.core.model.RecordCount;
 import com.platinumrelations.interview.payment_reconciliation.core.model.RowStatus;
 import com.platinumrelations.interview.payment_reconciliation.processor.model.ProcessorSettlement;
 import com.platinumrelations.interview.payment_reconciliation.processor.service.ProcessorSettlementService;
@@ -13,10 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
@@ -74,5 +72,24 @@ public class ProcessorSettlementController {
             ))
             @Valid @RequestBody List<ProcessorSettlement> settlementList){
         return ResponseEntity.ok(processorSettlementService.bulkCreateProcessorSettlements(settlementList));
+    }
+
+    @Operation(summary = "Deletes all existing Processor Settlements")
+    @ApiResponse(responseCode = "200", description = "An object representing the number of Processor Settlements deleted",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(
+                            type = "object",
+                            example = """
+                            {
+                                "record_count" : 23
+                            }
+                        """
+                    )
+            )
+    )
+    @DeleteMapping
+    public ResponseEntity<RecordCount> deleteAllProcessorSettlements(){
+        RecordCount recordCount = new RecordCount(processorSettlementService.removeAllExistingProcessorSettlements());
+        return ResponseEntity.ok(recordCount);
     }
 }

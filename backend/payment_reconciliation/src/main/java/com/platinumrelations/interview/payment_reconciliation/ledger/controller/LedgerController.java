@@ -1,5 +1,6 @@
 package com.platinumrelations.interview.payment_reconciliation.ledger.controller;
 
+import com.platinumrelations.interview.payment_reconciliation.core.model.RecordCount;
 import com.platinumrelations.interview.payment_reconciliation.core.model.RowStatus;
 import com.platinumrelations.interview.payment_reconciliation.ledger.service.LedgerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,5 +52,24 @@ public class LedgerController {
             )
             @RequestPart("file")MultipartFile file){
         return ResponseEntity.ok(ledgerService.bulkCreateLedgerInternalTransactions(file));
+    }
+
+    @Operation(summary = "Deletes all existing Ledger Transactions")
+    @ApiResponse(responseCode = "200", description = "An object representing the number of Ledger Transactions deleted",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(
+                            type = "object",
+                            example = """
+                            {
+                                "record_count" : 23
+                            }
+                        """
+                    )
+            )
+    )
+    @DeleteMapping
+    public ResponseEntity<RecordCount> deleteAllLedgerTransactions(){
+        RecordCount recordCount = new RecordCount(ledgerService.removeAllExistingInternalTransactions());
+        return ResponseEntity.ok(recordCount);
     }
 }

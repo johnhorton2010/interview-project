@@ -20,4 +20,8 @@ public class ProcessorSettlementService {
     public Map<String, RowStatus> bulkCreateProcessorSettlements(List<ProcessorSettlement> processorSettlementList){
         return processorSettlementRepository.saveAll(processorSettlementList);
     }
+
+    public int removeAllExistingProcessorSettlements(){
+        return processorSettlementRepository.deleteAll();
+    }
 }

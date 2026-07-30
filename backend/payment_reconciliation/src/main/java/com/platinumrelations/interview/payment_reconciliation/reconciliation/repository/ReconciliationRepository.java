@@ -325,4 +325,15 @@ public class ReconciliationRepository {
                 .param("category", Category.IN_PROGRESS.name())
                 .query(new MatchedTransactionsResultSetExtractor());
     }
+
+    public int deleteAll(){
+        String sql = """
+                DELETE
+                FROM reconciled_transactions
+                """;
+
+        return jdbcClient
+                .sql(sql)
+                .update();
+    }
 }

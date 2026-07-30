@@ -2,6 +2,7 @@ package com.platinumrelations.interview.payment_reconciliation.processor.control
 
 import com.platinumrelations.interview.payment_reconciliation.core.model.CardType;
 import com.platinumrelations.interview.payment_reconciliation.core.model.Currency;
+import com.platinumrelations.interview.payment_reconciliation.core.model.RecordCount;
 import com.platinumrelations.interview.payment_reconciliation.core.model.RowStatus;
 import com.platinumrelations.interview.payment_reconciliation.processor.model.ProcessorSettlement;
 import com.platinumrelations.interview.payment_reconciliation.processor.service.ProcessorSettlementService;
@@ -91,7 +92,6 @@ public class ProcessorSettlementControllerTest {
 
     @Test
     void bulkCreateProcessorSettlements_400_whenNoNetworkRefKey() {
-
         String requestJson = """
                 [
                 {
@@ -111,5 +111,24 @@ public class ProcessorSettlementControllerTest {
         assertThat(mockMvcTester.put().uri(psTransactionsUri).contentType(MediaType.APPLICATION_JSON).content(requestJson))
                 .hasStatus4xxClientError()
                 .hasContentType(MediaType.APPLICATION_JSON);
+    }
+
+    @Test
+    void deleteAllProcessorSettlements_200_happyPath() {
+        String responseJson = """
+                {
+                    "record_count" : 19
+                }
+                """;
+
+        int deletedCount = 19;
+
+        when(processorSettlementService.removeAllExistingProcessorSettlements()).thenReturn(deletedCount);
+
+        assertThat(mockMvcTester.delete().uri(psTransactionsUri))
+                .hasStatusOk()
+                .hasContentType(MediaType.APPLICATION_JSON)
+                .bodyJson()
+                .isStrictlyEqualTo(responseJson);
     }
 }
