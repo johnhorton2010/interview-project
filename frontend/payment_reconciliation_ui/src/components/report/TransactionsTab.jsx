@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { matchAll, refOf, figures } from '../../domain/selectors.js';
+import { matchAll, refOf, figures, saleOf, refundOf } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
 import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
@@ -126,12 +126,6 @@ const SEARCH_TITLE =
 
 const str = (a, b) => String(a || '').localeCompare(String(b || ''));
 const num = (a, b) => (a === null ? 0 : a) - (b === null ? 0 : b);
-
-// A row holds at most one ledger txn, so exactly one of these is ever non-null — which
-// is what lets the Sales/Refunds pair stand in for the old Type column. Refund gross is
-// already negative in the source data, so it needs no sign flip.
-const saleOf = (r) => (r.ledger && r.ledger.type === 'SALE' ? r.ledger.gross || 0 : null);
-const refundOf = (r) => (r.ledger && r.ledger.type === 'REFUND' ? r.ledger.gross || 0 : null);
 
 function SortH({ label, k, tx, setTx, colStyle }) {
   const active = tx.sortKey === k;

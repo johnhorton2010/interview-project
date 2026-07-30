@@ -195,6 +195,14 @@ export function merchantRollup(model) {
 export const refOf = (r) =>
   r.ledger ? r.ledger.merchantRef || '' : r.settlements[0] ? r.settlements[0].merchantRef || '' : '';
 
+// A row holds at most one ledger txn, so exactly one of these is ever non-null. That is
+// what lets a Sales/Refunds column pair stand in for a Type column — whichever side is
+// populated *is* the type. Refund gross is already negative in the source data, so it
+// needs no sign flip. `null` (not 0) means "no such side", which the tables render as
+// an em dash and their sort comparators sink to the bottom.
+export const saleOf = (r) => (r.ledger && r.ledger.type === 'SALE' ? r.ledger.gross || 0 : null);
+export const refundOf = (r) => (r.ledger && r.ledger.type === 'REFUND' ? r.ledger.gross || 0 : null);
+
 /**
  * One search grammar for the Breaks and Transactions tabs: plain text, amounts,
  * dates/ranges, and value-typed qualifiers (captured:, settled:, gross:, …).
