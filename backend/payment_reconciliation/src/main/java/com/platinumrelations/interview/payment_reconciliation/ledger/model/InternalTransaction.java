@@ -6,9 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
-import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonDeserialize;
-import tools.jackson.databind.annotation.JsonNaming;
 
 
 import java.math.BigDecimal;
@@ -18,7 +16,6 @@ import java.time.Instant;
 @Builder
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class InternalTransaction{
         @EqualsAndHashCode.Include
         @NotBlank(message = "The internalTxnId field cannot be blank.")

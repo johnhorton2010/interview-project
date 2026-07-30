@@ -115,7 +115,7 @@ public class ReconciliationControllerTest {
                 .bodyJson()
                 .isStrictlyEqualTo("""
                         {
-                          "internalTransactionToProcessorSettlementsMap" : {
+                          "internal_transaction_to_processor_settlements_map" : {
                             "TXN-000002" : [ {
                               "network_ref" : "ARN74000000000000048583",
                               "merchant_ref" : "ORD-006-29772",
@@ -130,7 +130,7 @@ public class ReconciliationControllerTest {
                               "category" : "CLEAN_MATCH"
                             } ]
                           },
-                          "processorSettlementToInternalTransactionsMap" : {
+                          "processor_settlement_to_internal_transactions_map" : {
                             "ARN74000000000000048583" : [ {
                               "internal_txn_id" : "TXN-000002",
                               "merchant_id" : "MERCH-006",
@@ -144,10 +144,10 @@ public class ReconciliationControllerTest {
                               "category" : "CLEAN_MATCH"
                             } ]
                           },
-                          "merchantRefToTransactionKeysMap" : {
+                          "merchant_ref_to_transaction_keys_map" : {
                             "ORD-006-29772" : {
-                              "internalTransactions" : [ "TXN-000002" ],
-                              "processorSettlements" : [ "ARN74000000000000048583" ]
+                              "internal_transactions" : [ "TXN-000002" ],
+                              "processor_settlements" : [ "ARN74000000000000048583" ]
                             }
                           }
                         }
