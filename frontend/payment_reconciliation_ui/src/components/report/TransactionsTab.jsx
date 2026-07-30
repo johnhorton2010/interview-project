@@ -75,13 +75,15 @@ const LSPEC = [
   { key: 'captured', min: 64 },
   { key: 'merchant', min: 64 },
   { key: 'ref', min: 88 },
-  { key: 'type', min: 44, align: 'right' },
-  // Gross → Fees → Settled → Discrepancy follows the row detail's arithmetic
-  // (gross less fees is what we expected; settled is what arrived) and matches the
-  // Summary and Merchants tables. NOTE: `renderRow` styles cells by position, so
-  // this order and every body-cell array below must stay in lockstep.
-  { key: 'gross', min: 64, align: 'right' },
+  // Sales → Refunds → Fees → Exp pay → Settled → Discrepancy reads left to right as the
+  // arithmetic the report is built on, and matches the Summary and Merchants tables.
+  // There is no Type column: a row holds at most one ledger txn, so whichever of Sales
+  // or Refunds is populated *is* the type. NOTE: `renderRow` styles cells by position,
+  // so this order and every body-cell array below must stay in lockstep.
+  { key: 'sales', min: 64, align: 'right' },
+  { key: 'refunds', min: 64, align: 'right' },
   { key: 'fees', min: 48, align: 'right' },
+  { key: 'expected', min: 64, align: 'right' },
   { key: 'settled', min: 64, align: 'right' },
   { key: 'disc', min: 64, align: 'right' },
   { key: 'category', min: 120 },
@@ -91,7 +93,7 @@ const LSPEC = [
 ];
 const SSPEC = LSPEC;
 
-const NATURAL = { id: 'asc', captured: 'desc', merchant: 'asc', ref: 'asc', type: 'asc', gross: 'desc', settled: 'desc', fees: 'desc', disc: 'desc', category: 'asc' };
+const NATURAL = { id: 'asc', captured: 'desc', merchant: 'asc', ref: 'asc', sales: 'desc', refunds: 'desc', expected: 'desc', settled: 'desc', fees: 'desc', disc: 'desc', category: 'asc' };
 
 // One source of truth for column labels, shared by the main header and the band
 // headers so a rename cannot leave the two disagreeing. Only `id` and `captured`
@@ -101,9 +103,10 @@ const LEDGER_LABELS = {
   captured: 'Captured on',
   merchant: 'Merchant',
   ref: 'Merchant ref',
-  type: 'Type',
-  gross: 'Gross',
+  sales: 'Sales',
+  refunds: 'Refunds',
   fees: 'Fees',
+  expected: 'Exp pay',
   settled: 'Settled',
   disc: 'Discrepancy',
   category: 'Category',
@@ -118,11 +121,17 @@ const LABELS = {
 // names type and fees, which only exist here.
 const SEARCH_TITLE =
   'Terms are combined with AND. Plain text matches ids, merchant, refs, type and category. ' +
-  'A decimal matches gross, settled, fees or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
+  'A decimal matches sales, refunds, settled, fees or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
   'matches either date column; prefix with captured: or settled: to pin it to one.';
 
 const str = (a, b) => String(a || '').localeCompare(String(b || ''));
 const num = (a, b) => (a === null ? 0 : a) - (b === null ? 0 : b);
+
+// A row holds at most one ledger txn, so exactly one of these is ever non-null — which
+// is what lets the Sales/Refunds pair stand in for the old Type column. Refund gross is
+// already negative in the source data, so it needs no sign flip.
+const saleOf = (r) => (r.ledger && r.ledger.type === 'SALE' ? r.ledger.gross || 0 : null);
+const refundOf = (r) => (r.ledger && r.ledger.type === 'REFUND' ? r.ledger.gross || 0 : null);
 
 function SortH({ label, k, tx, setTx, colStyle }) {
   const active = tx.sortKey === k;
@@ -162,8 +171,9 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     captured: (a, b) => str(a.ledger ? a.ledger.capturedAt : '', b.ledger ? b.ledger.capturedAt : ''),
     merchant: (a, b) => str(a.merchantId, b.merchantId),
     ref: (a, b) => str(refOf(a), refOf(b)),
-    type: (a, b) => str(a.ledger ? a.ledger.type : '', b.ledger ? b.ledger.type : ''),
-    gross: (a, b) => num(a.ledger ? a.ledger.gross : 0, b.ledger ? b.ledger.gross : 0),
+    sales: (a, b) => num(saleOf(a), saleOf(b)),
+    refunds: (a, b) => num(refundOf(a), refundOf(b)),
+    expected: (a, b) => num(a.rowExpected, b.rowExpected),
     settled: (a, b) => num(a.rowActual, b.rowActual),
     fees: (a, b) => num(a.rowFees, b.rowFees),
     disc: (a, b) => Math.abs(a.rowImpact) - Math.abs(b.rowImpact),
@@ -180,8 +190,9 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     captured: (a, b) => str(a.x.date, b.x.date),
     merchant: (a, b) => str(a.x.merchantId, b.x.merchantId),
     ref: (a, b) => str(a.x.merchantRef, b.x.merchantRef),
-    type: (a, b) => str(a.r.ledger ? a.r.ledger.type : '', b.r.ledger ? b.r.ledger.type : ''),
-    gross: (a, b) => num(a.r.ledger ? a.r.ledger.gross : 0, b.r.ledger ? b.r.ledger.gross : 0),
+    sales: (a, b) => num(saleOf(a.r), saleOf(b.r)),
+    refunds: (a, b) => num(refundOf(a.r), refundOf(b.r)),
+    expected: (a, b) => num(a.r.rowExpected, b.r.rowExpected),
     settled: (a, b) => num(a.x.settled, b.x.settled),
     fees: (a, b) => num(feesOf(a.x), feesOf(b.x)),
     disc: (a, b) => Math.abs(a.r.rowImpact) - Math.abs(b.r.rowImpact),
@@ -205,10 +216,27 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const neverSettled = txVisible.filter((r) => r.ledger && r.settlements.length === 0);
 
   // ---- totals
-  const txGross = txVisible.reduce((n, r) => n + (r.ledger ? r.ledger.gross || 0 : 0), 0);
-  const txFees = txVisible.reduce((n, r) => n + r.rowFees, 0);
-  const txSettled = txVisible.reduce((n, r) => n + r.rowActual, 0);
-  const txImpact = txVisible.reduce((n, r) => n + r.rowImpact, 0);
+  // Always reduce over distinct ReconRows, never over rendered rows: in settlement view
+  // one transaction spans several rows, and its ledger-side figures belong to the
+  // transaction (hence the 〃 on later parts), so per-row sums would double-count them.
+  const totalsOf = (rows) => ({
+    sales: rows.reduce((n, r) => n + (saleOf(r) || 0), 0),
+    refunds: rows.reduce((n, r) => n + (refundOf(r) || 0), 0),
+    fees: rows.reduce((n, r) => n + r.rowFees, 0),
+    expected: rows.reduce((n, r) => n + r.rowExpected, 0),
+    settled: rows.reduce((n, r) => n + r.rowActual, 0),
+    impact: rows.reduce((n, r) => n + r.rowImpact, 0),
+  });
+
+  // The two bands partition txVisible in both views, so sec1 + sec2 = the grand total.
+  const sec1 = settleCentric ? txVisible.filter((r) => r.settlements.length > 0) : ledgerRows;
+  const sec2 = settleCentric ? neverSettled : orphanRows;
+  // Only worth splitting out subtotals when both bands actually have rows — otherwise a
+  // subtotal just restates the grand total sitting directly beneath it.
+  const split = sec1.length > 0 && sec2.length > 0;
+
+  const grand = totalsOf(txVisible);
+  const txImpact = grand.impact;
   const txAll = txVisible.length === model.included.length;
   const tieOk = !txAll || txImpact === f.discrepancy;
 
@@ -223,7 +251,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
       ? `Filtered view — totals cover the ${settleRows.length} visible settlements, not the full dataset`
       : `Filtered view — totals cover the ${txVisible.length} visible rows, not the full dataset`;
   const footnote = settleCentric
-    ? '〃 repeats the gross and discrepancy printed on the row above for the same ledger transaction — those figures belong to the transaction, not to each payout, so they are counted once. Quarantined records are excluded; see the Quarantine tab.'
+    ? '〃 repeats the sales, refunds, expected pay and discrepancy printed on the row above for the same ledger transaction — those figures belong to the transaction, not to each payout, so they are counted once. Quarantined records are excluded; see the Quarantine tab.'
     : 'Quarantined records are excluded — see the Quarantine tab.';
 
   const exportCsv = () => {
@@ -234,15 +262,15 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           const parts = o.r.settlements.length;
           const idx = o.r.settlements.indexOf(o.x);
           const carrier = carrierOf[o.r.id] === idx + 1;
-          return [o.x.ref, parts > 1 ? `${idx + 1}/${parts}` : '', o.x.date, o.x.merchantId, o.x.merchantRef || '', o.r.ledger ? (o.r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '', carrier && o.r.ledger ? dec(o.r.ledger.gross) : '', dec(feesOf(o.x)), dec(o.x.settled), carrier ? dec(o.r.rowImpact) : '', getCategory(o.r.category).label, o.r.ledger ? o.r.ledger.id : ''];
+          return [o.x.ref, parts > 1 ? `${idx + 1}/${parts}` : '', o.x.date, o.x.merchantId, o.x.merchantRef || '', carrier ? dec(saleOf(o.r)) : '', carrier ? dec(refundOf(o.r)) : '', dec(feesOf(o.x)), carrier ? dec(o.r.rowExpected) : '', dec(o.x.settled), carrier ? dec(o.r.rowImpact) : '', getCategory(o.r.category).label, o.r.ledger ? o.r.ledger.id : ''];
         })
-        .concat(neverSettled.map((r) => ['', '', '', r.merchantId, r.ledger.merchantRef || '', r.ledger.type === 'SALE' ? 'Sale' : 'Refund', dec(r.ledger.gross), '', '', dec(r.rowImpact), getCategory(r.category).label, r.ledger.id]));
-      n = downloadCsv('transactions-by-settlement.csv', ['Network ref', 'Part', 'Settled on', 'Merchant', 'Merchant ref', 'Type', 'Gross', 'Fees', 'Settled', 'Discrepancy', 'Category', 'Ledger txn'], rows);
+        .concat(neverSettled.map((r) => ['', '', '', r.merchantId, r.ledger.merchantRef || '', dec(saleOf(r)), dec(refundOf(r)), '', dec(r.rowExpected), '', dec(r.rowImpact), getCategory(r.category).label, r.ledger.id]));
+      n = downloadCsv('transactions-by-settlement.csv', ['Network ref', 'Part', 'Settled on', 'Merchant', 'Merchant ref', 'Sales', 'Refunds', 'Fees', 'Exp pay', 'Settled', 'Discrepancy', 'Category', 'Ledger txn'], rows);
     } else {
       n = downloadCsv(
         'transactions.csv',
-        ['Txn id', 'Captured on', 'Merchant', 'Merchant ref', 'Type', 'Gross', 'Fees', 'Settled', 'Discrepancy', 'Category', 'Network refs'],
-        txVisible.map((r) => [r.ledger ? r.ledger.id : '', r.ledger ? r.ledger.capturedAt : '', r.merchantId, r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '', r.ledger ? (r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '', dec(r.ledger ? r.ledger.gross : null), dec(r.rowFees), r.settlements.length ? dec(r.rowActual) : '', dec(r.rowImpact), getCategory(r.category).label, r.settlements.map((x) => x.ref).join(' ')]),
+        ['Txn id', 'Captured on', 'Merchant', 'Merchant ref', 'Sales', 'Refunds', 'Fees', 'Exp pay', 'Settled', 'Discrepancy', 'Category', 'Network refs'],
+        txVisible.map((r) => [r.ledger ? r.ledger.id : '', r.ledger ? r.ledger.capturedAt : '', r.merchantId, r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '', dec(saleOf(r)), dec(refundOf(r)), dec(r.rowFees), dec(r.rowExpected), r.settlements.length ? dec(r.rowActual) : '', dec(r.rowImpact), getCategory(r.category).label, r.settlements.map((x) => x.ref).join(' ')]),
       );
     }
     flash(`${settleCentric ? 'transactions-by-settlement.csv' : 'transactions.csv'} — ${n} rows exported`);
@@ -250,6 +278,14 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
   const catLabel = tx.cats.length === 0 ? 'All categories' : tx.cats.length === 1 ? getCategory(tx.cats[0]).label : `${tx.cats.length} categories`;
   const impCol = (c) => (c === 0 ? INK2 : c < 0 ? NEG : POS);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+  // Settlement view counts settlements, but the never-settled band holds rows that are not
+  // settlements at all — naming only the settlements would read as though the subtotals
+  // above did not add up to it.
+  const grandCount = settleCentric
+    ? plural(settleRows.length, 'settlement') + (neverSettled.length ? ` · ${neverSettled.length} unsettled` : '')
+    : plural(txVisible.length, 'row');
 
   const renderRow = (key, cols, cells, row, subline) => {
     const open = expanded === key;
@@ -295,13 +331,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   );
 
   const renderLedgerRow = (r) => {
-    const n = r.settlements.length;
-    const settled = n ? (
-      <>
-        {fmt(r.rowActual)}
-        {n > 1 && <span style={{ color: '#9aa3b0', fontSize: 11 }}> +{n - 1}</span>}
-      </>
-    ) : '—';
+    // '—' not '$0.00' when nothing settled, matching BreaksTab. A row folding several
+    // payouts into this sum is flagged by the subline's ref count and by its category,
+    // so the figure itself carries no marker.
+    const settled = r.settlements.length ? fmt(r.rowActual) : '—';
     const refs = r.settlements.map((x) => x.ref);
     const refDisplay = refs.length ? shortRefOf(refs[0]) + (refs.length > 1 ? ` +${refs.length - 1}` : '') : '';
     return renderRow(
@@ -314,9 +347,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         cell(r.ledger ? r.ledger.capturedAt : 'no ledger', { color: INK2, size: 12 }),
         cell(r.merchantId, { color: INK2, size: 12 }),
         cell(r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—', { color: INK2, size: 12 }),
-        cell(r.ledger ? (r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '—', { sans: true, size: 12, color: r.ledger && r.ledger.type === 'REFUND' ? NEG : INK2 }),
-        cell(r.ledger ? fmt(r.ledger.gross) : '—', { right: true }),
+        cell(saleOf(r) === null ? '—' : fmt(saleOf(r)), { right: true }),
+        cell(refundOf(r) === null ? '—' : fmt(refundOf(r)), { right: true, color: refundOf(r) === null ? undefined : NEG }),
         cell(fmt(r.rowFees), { right: true, color: INK2 }),
+        cell(fmt(r.rowExpected), { right: true }),
         cell(settled, { right: true }),
         cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
         catCell(r.category),
@@ -337,6 +371,29 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
       ) : null,
     );
   };
+
+  /**
+   * Summary row over the measure columns, positionally matched to LSPEC like the body
+   * rows. `strong` marks the grand total: it keeps the firm rule the single Total row
+   * always had, while the subtotals sit under a softer one so the three read as a
+   * hierarchy rather than three equal rows.
+   */
+  const totalRow = (key, label, count, t, strong) => (
+    <div key={key} role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 16px', borderTop: `1px solid ${strong ? C.borderStrong : C.borderSoft}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+      <span role="cell" style={{ fontFamily: SANS, fontSize: 12, fontWeight: strong ? 600 : 400 }}>{label}</span>
+      <span /><span />
+      {/* Merchant ref is the last text column before the measure block, so the count
+          goes there in both views — it is the only slot left that is not money. */}
+      <span role="cell" style={{ fontFamily: SANS, fontSize: 12, color: INK2 }}>{count}</span>
+      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.sales)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: t.refunds === 0 ? undefined : NEG }}>{fmt(t.refunds)}</span>
+      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.fees)}</span>
+      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.expected)}</span>
+      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.settled)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: impCol(t.impact) }}>{sfmt(t.impact)}</span>
+      <span /><span />
+    </div>
+  );
 
   return (
     <section>
@@ -417,9 +474,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
                 <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} colStyle={col('ref')} />
-                <SortH label={L.type} k="type" tx={tx} setTx={setTx} colStyle={col('type')} />
-                <SortH label={L.gross} k="gross" tx={tx} setTx={setTx} colStyle={col('gross')} />
+                <SortH label={L.sales} k="sales" tx={tx} setTx={setTx} colStyle={col('sales')} />
+                <SortH label={L.refunds} k="refunds" tx={tx} setTx={setTx} colStyle={col('refunds')} />
                 <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} colStyle={col('fees')} />
+                <SortH label={L.expected} k="expected" tx={tx} setTx={setTx} colStyle={col('expected')} />
                 <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} colStyle={col('settled')} />
                 <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} colStyle={col('disc')} />
                 <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
@@ -430,11 +488,15 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 const idx = o.r.settlements.indexOf(o.x);
                 const carrier = carrierOf[o.r.id] === idx + 1;
                 const parts = o.r.settlements.length;
-                // One string for both carried cells, as the design's `inheritTitle` does:
-                // gross and discrepancy belong to the transaction, not to each payout.
+                // One string for every carried cell, as the design's `inheritTitle` does:
+                // the ledger-side figures belong to the transaction, not to each payout.
+                // Fees and Settled are the only money columns that are per-payout here.
                 const inheritTitle = carrier
                   ? ''
-                  : `Same ledger transaction — gross and discrepancy are shown on part ${carrierOf[o.r.id]} of ${parts}`;
+                  : `Same ledger transaction — sales, refunds, expected pay and discrepancy are shown on part ${carrierOf[o.r.id]} of ${parts}`;
+                // Carried cell: the figure on the carrier row, 〃 on every later part.
+                const carried = (content, color) =>
+                  cell(carrier ? content : '〃', { right: true, color: carrier ? color || INK : '#9aa3b0', title: inheritTitle });
                 return renderRow(
                   o.x.ref,
                   COLS,
@@ -443,9 +505,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                     cell(o.x.date, { color: INK2, size: 12 }),
                     cell(o.x.merchantId, { color: INK2, size: 12 }),
                     cell(o.x.merchantRef || '—', { color: INK2, size: 12 }),
-                    cell(o.r.ledger ? (o.r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '—', { sans: true, size: 12, color: o.r.ledger && o.r.ledger.type === 'REFUND' ? NEG : INK2 }),
-                    cell(carrier ? (o.r.ledger ? fmt(o.r.ledger.gross) : '—') : '〃', { right: true, color: carrier && o.r.ledger ? INK : '#9aa3b0', title: inheritTitle }),
+                    carried(saleOf(o.r) === null ? '—' : fmt(saleOf(o.r))),
+                    carried(refundOf(o.r) === null ? '—' : fmt(refundOf(o.r)), refundOf(o.r) === null ? undefined : NEG),
                     cell(feesOf(o.x) === 0 ? '—' : fmt(feesOf(o.x)), { right: true, color: INK2 }),
+                    carried(fmt(o.r.rowExpected)),
                     cell(fmt(o.x.settled), { right: true }),
                     cell(carrier ? sfmt(o.r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? impCol(o.r.rowImpact) : '#9aa3b0', title: inheritTitle }),
                     catCell(o.r.category),
@@ -455,6 +518,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                   o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} note={parts > 1 ? `part ${idx + 1} of ${parts}` : null} /> : null,
                 );
               })}
+              {split && totalRow('sub-settled', 'Subtotal', plural(settleRows.length, 'settlement'), totalsOf(sec1), false)}
               {neverSettled.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} template={COLS} gap={GAP} col={col}>
                   Never settled — ledger transactions with no payout
@@ -471,9 +535,11 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                     cell('unsettled', { color: '#9aa3b0', sans: true, size: 12 }),
                     cell(r.merchantId, { color: INK2, size: 12 }),
                     cell(r.ledger.merchantRef || '—', { color: INK2, size: 12 }),
-                    cell(r.ledger.type === 'SALE' ? 'Sale' : 'Refund', { sans: true, size: 12, color: r.ledger.type === 'REFUND' ? NEG : INK2 }),
-                    cell(fmt(r.ledger.gross), { right: true }),
+                    cell(saleOf(r) === null ? '—' : fmt(saleOf(r)), { right: true }),
+                    cell(refundOf(r) === null ? '—' : fmt(refundOf(r)), { right: true, color: refundOf(r) === null ? undefined : NEG }),
+                    // No payout, so no fees were ever deducted — expected pay is the gross.
                     cell('—', { right: true, color: '#9aa3b0' }),
+                    cell(fmt(r.rowExpected), { right: true }),
                     cell('—', { right: true, color: '#9aa3b0' }),
                     cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
                     catCell(r.category),
@@ -484,6 +550,8 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                   null,
                 ),
               )}
+              {/* "rows", not "settlements": these are the ones with no payout at all. */}
+              {split && totalRow('sub-never', 'Subtotal', plural(neverSettled.length, 'row'), totalsOf(sec2), false)}
             </>
           ) : (
             <>
@@ -492,9 +560,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
                 <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} colStyle={col('ref')} />
-                <SortH label={L.type} k="type" tx={tx} setTx={setTx} colStyle={col('type')} />
-                <SortH label={L.gross} k="gross" tx={tx} setTx={setTx} colStyle={col('gross')} />
+                <SortH label={L.sales} k="sales" tx={tx} setTx={setTx} colStyle={col('sales')} />
+                <SortH label={L.refunds} k="refunds" tx={tx} setTx={setTx} colStyle={col('refunds')} />
                 <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} colStyle={col('fees')} />
+                <SortH label={L.expected} k="expected" tx={tx} setTx={setTx} colStyle={col('expected')} />
                 <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} colStyle={col('settled')} />
                 <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} colStyle={col('disc')} />
                 <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
@@ -502,36 +571,24 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
               </div>
               {ledgerRows.length === 0 && orphanRows.length === 0 && <div style={{ padding: '26px 16px', color: '#9aa3b0' }}>No transactions match.</div>}
               {ledgerRows.map(renderLedgerRow)}
+              {split && totalRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totalsOf(sec1), false)}
               {orphanRows.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} template={COLS} gap={GAP} col={col}>
                   Unattributed settlements — no ledger side
                 </SectionHeader>
               )}
               {orphanRows.map(renderLedgerRow)}
+              {split && totalRow('sub-orphan', 'Subtotal', plural(orphanRows.length, 'row'), totalsOf(sec2), false)}
             </>
           )}
 
-          <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 16px', borderTop: `1px solid ${C.borderStrong}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
-            <span role="cell" style={{ fontFamily: SANS, fontSize: 12 }}>Total</span>
-            <span /><span />
-            {/* Settlement view prints its count in Merchant ref; ledger view in Type. */}
-            {settleCentric ? (
-              <>
-                <span role="cell" style={{ fontFamily: SANS, fontSize: 12, color: INK2 }}>{settleRows.length} settlements</span>
-                <span />
-              </>
-            ) : (
-              <>
-                <span />
-                <span role="cell" style={{ fontFamily: SANS, fontSize: 12, color: INK2 }}>{txVisible.length} rows</span>
-              </>
-            )}
-            <span role="cell" style={{ textAlign: 'right' }}>{fmt(txGross)}</span>
-            <span role="cell" style={{ textAlign: 'right' }}>{fmt(txFees)}</span>
-            <span role="cell" style={{ textAlign: 'right' }}>{fmt(txSettled)}</span>
-            <span role="cell" style={{ textAlign: 'right', color: impCol(txImpact) }}>{sfmt(txImpact)}</span>
-            <span /><span />
-          </div>
+          {totalRow(
+            'grand',
+            'Grand total',
+            grandCount,
+            grand,
+            true,
+          )}
         </div>
         <div style={{ padding: '11px 16px', borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceAlt, borderRadius: '0 0 8px 8px', fontSize: 11, color: tieOk ? '#9aa3b0' : NEG, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span>{tieNote}</span>
