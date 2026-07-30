@@ -26,17 +26,23 @@ public class ReconciliationController {
     final ReconciliationService reconciliationService;
 
     @Operation(summary = "Kick off the reconciliation process based on existing Ledger Internal Transactions and ProcessorSettlementTransactions")
-    @ApiResponse(responseCode = "200", description = "The number of new Reconciled Transactions created",
+    @ApiResponse(responseCode = "200", description = "An object representing the number of new Reconciled Transactions created",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(
-                            type = "integer"
+                            type = "object",
+                            example = """
+                            {
+                                "record_count" : 23
+                            }
+                        """
                     ),
                     examples = @ExampleObject(value = "23")
             )
     )
     @PostMapping
-    public ResponseEntity<Integer> reconcile(){
-        return ResponseEntity.ok(reconciliationEngine.reconcile());
+    public ResponseEntity<RecordCount> reconcile(){
+        RecordCount recordCount = new RecordCount(reconciliationEngine.reconcile());
+        return ResponseEntity.ok(recordCount);
     }
 
     @Operation(summary = "Retrieves the current mappings of Ledger Internal Transaction to Processor Settlement Transactions as Reconciled Transactions")

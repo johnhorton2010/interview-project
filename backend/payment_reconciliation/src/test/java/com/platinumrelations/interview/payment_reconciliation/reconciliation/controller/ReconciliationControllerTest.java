@@ -48,13 +48,19 @@ public class ReconciliationControllerTest {
 
     @Test
     void reconcile_200_whenHappyPath() {
-        when(reconciliationEngine.reconcile()).thenReturn(1);
+        String responseJson = """
+                {
+                    "record_count" : 21
+                }
+                """;
+
+        when(reconciliationEngine.reconcile()).thenReturn(21);
 
         assertThat(mockMvcTester.post().uri(reconciliationsUri))
                 .hasStatusOk()
                 .hasContentType(MediaType.APPLICATION_JSON)
                 .bodyJson()
-                .isStrictlyEqualTo("1");
+                .isStrictlyEqualTo(responseJson);
     }
 
     @Test
