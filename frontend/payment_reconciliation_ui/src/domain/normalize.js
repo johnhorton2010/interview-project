@@ -3,6 +3,9 @@
 // record's category is only readable from the *opposite* map, records repeat across
 // keys, and the unmatched bucket is the literal string key "null".
 //
+// The payload is snake_case throughout, top-level map names included, since the
+// backend adopted Jackson's SNAKE_CASE naming strategy.
+//
 // Field names below match the design component's model shape (id / gross / ref /
 // settled / interchange / processor / date) so the design's presentation logic ports
 // with minimal translation. Amounts are integer cents.
@@ -82,18 +85,19 @@ const NULL_KEY = 'null';
  * @returns {{ ledger: LedgerTxn[], settle: Settlement[], rows: ReconRow[], included: ReconRow[] }}
  */
 export function normalize(payload) {
-  const intToStl = payload && payload.internalTransactionToProcessorSettlementsMap;
-  const stlToInt = payload && payload.processorSettlementToInternalTransactionsMap;
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const intToStl = p.internal_transaction_to_processor_settlements_map;
+  const stlToInt = p.processor_settlement_to_internal_transactions_map;
 
   // The canonical map is read with no fallback (PRD D4): a missing key is an error.
   if (!stlToInt || typeof stlToInt !== 'object') {
     throw new Error(
-      'Malformed reconciliation payload: processorSettlementToInternalTransactionsMap is missing.',
+      'Malformed reconciliation payload: processor_settlement_to_internal_transactions_map is missing.',
     );
   }
   if (!intToStl || typeof intToStl !== 'object') {
     throw new Error(
-      'Malformed reconciliation payload: internalTransactionToProcessorSettlementsMap is missing.',
+      'Malformed reconciliation payload: internal_transaction_to_processor_settlements_map is missing.',
     );
   }
 

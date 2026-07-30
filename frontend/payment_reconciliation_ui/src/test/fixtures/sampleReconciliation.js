@@ -141,8 +141,8 @@ export function buildSamplePayload() {
   );
 
   return {
-    internalTransactionToProcessorSettlementsMap: intToStl,
-    processorSettlementToInternalTransactionsMap: stlToInt,
-    merchantRefToTransactionKeysMap: {},
+    internal_transaction_to_processor_settlements_map: intToStl,
+    processor_settlement_to_internal_transactions_map: stlToInt,
+    merchant_ref_to_transaction_keys_map: {},
   };
 }

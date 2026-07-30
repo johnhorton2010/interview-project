@@ -112,8 +112,12 @@ describe('per-merchant rollup — exact values (AC-21)', () => {
 
 describe('malformed-payload guard (PRD D4)', () => {
   it('throws when the canonical settlement→internal map is missing', () => {
-    expect(() => normalize({ internalTransactionToProcessorSettlementsMap: {} })).toThrow(
-      /processorSettlementToInternalTransactionsMap is missing/,
+    expect(() => normalize({ internal_transaction_to_processor_settlements_map: {} })).toThrow(
+      /processor_settlement_to_internal_transactions_map is missing/,
     );
+  });
+
+  it('throws on a null payload rather than dereferencing it', () => {
+    expect(() => normalize(null)).toThrow(/processor_settlement_to_internal_transactions_map is missing/);
   });
 });
