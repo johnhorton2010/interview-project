@@ -101,14 +101,19 @@ export function categorySummary(model) {
       // (borderSoft is named for a border; here it is deliberately a row fill.)
       rowInk: isQuar ? INK2 : null,
       bg: isQuar ? C.borderSoft : '#ffffff',
-      sales: rawSales === 0 ? '—' : fmt(rawSales),
+      // Every monetary cell on the excluded row reads N/A, not just expected and impact:
+      // quarantined records are absent from all of them, so printing a real figure under
+      // Sales or Settled invites adding it into a total it is deliberately outside of.
+      // Only the display strings are blanked — `raw*` below keeps the underlying amounts,
+      // and the Quarantine tab still lists each record's own figure.
+      sales: isQuar ? 'N/A' : rawSales === 0 ? '—' : fmt(rawSales),
       salesColor: ls.some(isSale) ? INK : DIM,
-      refunds: rawRefunds === 0 ? '—' : '−' + fmt(rawRefunds),
+      refunds: isQuar ? 'N/A' : rawRefunds === 0 ? '—' : '−' + fmt(rawRefunds),
       refundColor: ls.some(isRefund) ? NEG : DIM,
-      fees: rawFees === 0 ? '—' : '−' + fmt(rawFees),
+      fees: isQuar ? 'N/A' : rawFees === 0 ? '—' : '−' + fmt(rawFees),
       feeColor: ss.some((x) => (x.interchange || 0) + (x.processor || 0) !== 0) ? NEG : DIM,
       expected: isQuar ? 'N/A' : fmt(rawSales - rawRefunds - rawFees),
-      settled: rawSettled === 0 ? '—' : fmt(rawSettled),
+      settled: isQuar ? 'N/A' : rawSettled === 0 ? '—' : fmt(rawSettled),
       settledColor: ss.length ? INK : DIM,
       impact: isQuar ? 'N/A' : sfmt(rawImpact),
       impactColor: isQuar ? DIM : rawImpact === 0 ? INK2 : rawImpact < 0 ? NEG : POS,

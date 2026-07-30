@@ -53,11 +53,12 @@ export default function CategoryTable({ model, nav, flash }) {
         c.totalCount,
         c.rawLedgerN,
         c.rawSettleN,
-        dec(c.rawSales),
-        dec(-c.rawRefunds),
-        dec(-c.rawFees),
+        // Mirrors the table: the excluded row carries no monetary figure in either place.
+        c.isQuarantine ? 'N/A' : dec(c.rawSales),
+        c.isQuarantine ? 'N/A' : dec(-c.rawRefunds),
+        c.isQuarantine ? 'N/A' : dec(-c.rawFees),
         c.isQuarantine ? 'N/A' : dec(c.rawSales - c.rawRefunds - c.rawFees),
-        dec(c.rawSettled),
+        c.isQuarantine ? 'N/A' : dec(c.rawSettled),
         c.isQuarantine ? 'N/A' : dec(c.rawImpact),
       ]),
     );
@@ -68,6 +69,71 @@ export default function CategoryTable({ model, nav, flash }) {
     if (c.isQuarantine) return nav.toQuarantine();
     if (c.key === 'CLEAN_MATCH') return nav.toTransactions({ txCats: [c.key], txType: 'all', txQuery: '' });
     return nav.toBreaks({ catFilter: [c.key], merchantFilter: null });
+  };
+
+  // Quarantined sits below the total, so split it out of the category list.
+  const included = rows.filter((c) => !c.isQuarantine);
+  const quarantined = rows.find((c) => c.isQuarantine);
+
+  // Rendered for the included categories and, separately, for the quarantine row
+  // below the total — one definition so the two can never drift apart.
+  const renderRow = (c) => {
+    // A muted row overrides every cell colour with one flat, AA-compliant ink; the
+    // tint above carries the de-emphasis that opacity used to.
+    const ink = (fallback) => c.rowInk || fallback;
+    return (
+    <HoverRow
+      key={c.key}
+      role="row"
+      onClick={() => onRow(c)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: COLS,
+        gap: GAP,
+        padding: `${rowPad} 18px`,
+        borderBottom: `1px solid ${C.rowRule}`,
+        cursor: 'pointer',
+        background: c.bg,
+        // Cells without an explicit colour (the category label) inherit this.
+        color: c.rowInk || undefined,
+        fontFamily: MONO,
+        fontVariantNumeric: 'tabular-nums',
+      }}
+      hoverStyle={{ background: C.hover }}
+    >
+      <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, fontFamily: SANS }}>
+        <SevDot color={c.sevColor} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+      </span>
+      <span role="cell" style={{ display: 'flex', alignItems: 'center' }}>
+        <span
+          style={{
+            fontFamily: SANS,
+            fontSize: 10,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: ink(c.sevColor),
+            border: `1px solid ${c.sevBorder}`,
+            background: c.sevBg,
+            borderRadius: 3,
+            padding: '1px 5px',
+          }}
+        >
+          {c.severity}
+        </span>
+      </span>
+      <Num color={ink(c.dimColor)}>{c.totalCount}</Num>
+      <Num color={ink(c.dimColor)}>{c.sides}</Num>
+      <Num color={ink(c.salesColor)}>{c.sales}</Num>
+      <Num color={ink(c.refundColor)}>{c.refunds}</Num>
+      <Num color={ink(c.feeColor)}>{c.fees}</Num>
+      <Num color={ink(INK)}>{c.expected}</Num>
+      <Num color={ink(c.settledColor)}>{c.settled}</Num>
+      <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 500, color: ink(c.impactColor) }}>
+        {c.impact}
+      </span>
+    </HoverRow>
+    );
   };
 
   return (
@@ -110,64 +176,7 @@ export default function CategoryTable({ model, nav, flash }) {
           <HeadCell right>Discrepancy</HeadCell>
         </div>
 
-        {rows.map((c) => {
-          // A muted row overrides every cell colour with one flat, AA-compliant ink; the
-          // tint above carries the de-emphasis that opacity used to.
-          const ink = (fallback) => c.rowInk || fallback;
-          return (
-          <HoverRow
-            key={c.key}
-            role="row"
-            onClick={() => onRow(c)}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: COLS,
-              gap: GAP,
-              padding: `${rowPad} 18px`,
-              borderBottom: `1px solid ${C.rowRule}`,
-              cursor: 'pointer',
-              background: c.bg,
-              // Cells without an explicit colour (the category label) inherit this.
-              color: c.rowInk || undefined,
-              fontFamily: MONO,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-            hoverStyle={{ background: C.hover }}
-          >
-            <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, fontFamily: SANS }}>
-              <SevDot color={c.sevColor} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
-            </span>
-            <span role="cell" style={{ display: 'flex', alignItems: 'center' }}>
-              <span
-                style={{
-                  fontFamily: SANS,
-                  fontSize: 10,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: ink(c.sevColor),
-                  border: `1px solid ${c.sevBorder}`,
-                  background: c.sevBg,
-                  borderRadius: 3,
-                  padding: '1px 5px',
-                }}
-              >
-                {c.severity}
-              </span>
-            </span>
-            <Num color={ink(c.dimColor)}>{c.totalCount}</Num>
-            <Num color={ink(c.dimColor)}>{c.sides}</Num>
-            <Num color={ink(c.salesColor)}>{c.sales}</Num>
-            <Num color={ink(c.refundColor)}>{c.refunds}</Num>
-            <Num color={ink(c.feeColor)}>{c.fees}</Num>
-            <Num color={ink(INK)}>{c.expected}</Num>
-            <Num color={ink(c.settledColor)}>{c.settled}</Num>
-            <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 500, color: ink(c.impactColor) }}>
-              {c.impact}
-            </span>
-          </HoverRow>
-          );
-        })}
+        {included.map(renderRow)}
 
         <div
           role="row"
@@ -194,6 +203,10 @@ export default function CategoryTable({ model, nav, flash }) {
           <Num color={INK}>{totals.settled}</Num>
           <Num color={discColor}>{totals.discrepancy}</Num>
         </div>
+
+        {/* Below the total, not above it: quarantined records are excluded from
+            every figure in that row, and position says so more plainly than a label. */}
+        {quarantined && renderRow(quarantined)}
       </div>
     </section>
   );
