@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.dataformat.csv.CsvMapper;
 import tools.jackson.dataformat.csv.CsvSchema;
 
@@ -49,7 +50,7 @@ public class LedgerService {
                     .build()
                     .withColumnReordering(true);
 
-            CsvMapper csvMapper = new CsvMapper();
+            CsvMapper csvMapper = CsvMapper.builder().propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE).build();
 
         try (InputStream fileInputStream = file.getInputStream()){
             return csvMapper.readerFor(InternalTransaction.class).with(schema).<InternalTransaction>readValues(fileInputStream).readAll();
