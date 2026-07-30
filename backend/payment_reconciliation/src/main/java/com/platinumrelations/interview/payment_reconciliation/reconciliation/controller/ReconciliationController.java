@@ -35,8 +35,7 @@ public class ReconciliationController {
                                 "record_count" : 23
                             }
                         """
-                    ),
-                    examples = @ExampleObject(value = "23")
+                    )
             )
     )
     @PostMapping
@@ -52,7 +51,7 @@ public class ReconciliationController {
                             type = "object",
                             example = """
                         {
-                          "internalTransactionToProcessorSettlementsMap" : {
+                          "internal_transaction_to_processor_settlements_map" : {
                             "TXN-000002" : [ {
                               "network_ref" : "ARN74000000000000048583",
                               "merchant_ref" : "ORD-006-29772",
@@ -67,7 +66,7 @@ public class ReconciliationController {
                               "category" : "CLEAN_MATCH"
                             } ]
                           },
-                          "processorSettlementToInternalTransactionsMap" : {
+                          "processor_settlement_to_internal_transactions_map" : {
                             "ARN74000000000000048583" : [ {
                               "internal_txn_id" : "TXN-000002",
                               "merchant_id" : "MERCH-006",
@@ -81,7 +80,7 @@ public class ReconciliationController {
                               "category" : "CLEAN_MATCH"
                             } ]
                           },
-                          "merchantRefToTransactionKeysMap" : {
+                          "merchant_ref_to_transaction_keys_map" : {
                             "ORD-006-29772" : {
                               "internalTransactions" : [ "TXN-000002" ],
                               "processorSettlements" : [ "ARN74000000000000048583" ]
