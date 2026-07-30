@@ -1,26 +1,36 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { matchAll, refOf } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
-import { fmt, sfmt, dec, downloadCsv } from '../../domain/format.js';
+import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
-import { HoverRow, SevDot, GhostButton, useDismiss } from '../common.jsx';
+import { useColumns } from '../../styles/columns.js';
+import { HoverRow, SevDot, GhostButton, useDismiss, copyText } from '../common.jsx';
+import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
-const COLS =
-  'minmax(84px, 1.1fr) minmax(78px, 0.7fr) minmax(104px, 1fr) minmax(58px, 0.7fr) minmax(58px, 0.7fr) minmax(90px, 0.9fr) minmax(94px, 0.85fr) minmax(84px, 0.8fr) 16px';
+// Labels first, then one uniformly right-aligned block of figures and dates, so
+// every gutter right of `ref` is identical. See src/styles/columns.js.
+const SPEC = [
+  { key: 'category', min: 120 },
+  { key: 'merchant', min: 64 },
+  { key: 'ref', min: 88 },
+  { key: 'gross', min: 64, align: 'right' },
+  { key: 'settled', min: 64, align: 'right' },
+  { key: 'impact', min: 64, align: 'right' },
+  { key: 'captured', min: 64, align: 'right' },
+  { key: 'date', min: 64, align: 'right' },
+  // Follows the right-aligned `date`, so it supplies its own gutter via slack.
+  { key: 'caret', min: 8, align: 'right' },
+];
 
 const NATURAL = { category: 'asc', merchant: 'asc', ref: 'asc', gross: 'desc', settled: 'desc', impact: 'desc', captured: 'desc', date: 'desc' };
 
-const SEARCH_HELP = [
-  ['ORD-008  MERCH-006', 'plain text — ids, network refs, merchant, merchant ref, type, category'],
-  ['831.42   $1,557.02', 'any money column — gross, settled, fees or discrepancy'],
-  ['2026-06-05', 'either date column'],
-  ['2026-06', 'the whole month'],
-  ['2026-06-01..2026-06-05', 'a date range, inclusive'],
-  ['captured:  settled:', 'pin a date to one column; settled: also accepts an amount'],
-  ['gross: fees: disc:', 'pin an amount to one column; amount: searches all four'],
-  ['type:refund  category:', 'match sale or refund, or a category name'],
-];
+// Search grammar, also offered via the `?` popover. Breaks omits type and fees —
+// it has no such columns — so this must not be shared with the Transactions tab.
+const SEARCH_TITLE =
+  'Terms are combined with AND. Plain text matches ids, merchant, refs and category. ' +
+  'A decimal matches gross, settled or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
+  'matches either date column; prefix with captured: or settled: to pin it to one.';
 
 function SortHeader({ label, active, dir, onClick, right }) {
   return (
@@ -52,7 +62,8 @@ function SortHeader({ label, active, dir, onClick, right }) {
 export default function BreaksTab({ model, br, setBr, expanded, setExpanded, flash }) {
   const { query, catFilter, merchantFilter, sortKey, sortDir } = br;
   const catMenuRef = useDismiss(br.catOpen, () => setBr((b) => ({ ...b, catOpen: false })));
-  const helpRef = useDismiss(br.helpOpen, () => setBr((b) => ({ ...b, helpOpen: false })));
+  const tableRef = useRef(null);
+  const { template: COLS, gap: GAP, cell, isRight } = useColumns(tableRef, SPEC);
 
   const breaks = model.included.filter((r) => r.category !== 'CLEAN_MATCH');
   const chipCounts = {};
@@ -91,7 +102,6 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     return base(a, b) * flip;
   });
 
-  const maxImpact = Math.max(1, ...breaks.map((r) => Math.abs(r.rowImpact)));
   const setSort = (key) =>
     setBr((b) => (b.sortKey === key ? { ...b, sortDir: b.sortDir === 'asc' ? 'desc' : 'asc' } : { ...b, sortKey: key, sortDir: NATURAL[key] }));
 
@@ -99,6 +109,20 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
   if (catFilter.length) filterBits.push('category: ' + catFilter.map((k) => getCategory(k).label).join(', '));
   if (merchantFilter) filterBits.push('merchant: ' + merchantFilter);
   if (query.trim()) filterBits.push('search: "' + query.trim() + '"');
+
+  // Deep link to the open row, matching the design footer's right span.
+  const deepLink = expanded ? `/report/breaks/${expanded}` : '/report/breaks';
+
+  const SORT_LABEL = {
+    impact: 'absolute discrepancy, then severity',
+    captured: 'capture date',
+    merchant: 'merchant',
+    date: 'settlement date',
+    ref: 'merchant ref',
+    gross: 'ledger gross',
+    settled: 'settled amount',
+  };
+  const sortLabel = (SORT_LABEL[sortKey] || 'category name') + (sortDir === 'asc' ? ' ↑ ascending' : ' ↓ descending');
 
   const exportCsv = () => {
     const out = filtered.reduce((acc, r) => {
@@ -153,31 +177,15 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
           value={query}
           onChange={(e) => setBr((b) => ({ ...b, query: e.target.value }))}
           placeholder="Search id, merchant, ref, amount, or date — e.g. captured:2026-06-01..2026-06-05"
+          title={SEARCH_TITLE}
           style={{ flex: 1, minWidth: 260, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK }}
         />
-        <div ref={helpRef} style={{ position: 'relative' }}>
-          <button
-            type="button"
-            title="Search help"
-            aria-expanded={br.helpOpen}
-            onClick={() => setBr((b) => ({ ...b, helpOpen: !b.helpOpen }))}
-            style={{ width: 26, height: 26, border: `1px solid ${br.helpOpen ? '#bcd0f5' : C.border}`, background: br.helpOpen ? '#eaf0fd' : '#fff', color: br.helpOpen ? ACCENT : INK2, borderRadius: 5, fontSize: 12, cursor: 'pointer', lineHeight: 1 }}
-          >
-            ?
-          </button>
-          {br.helpOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30, width: 372, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: '12px 14px', animation: 'riseIn 120ms ease-out' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: INK, marginBottom: 8 }}>Search</div>
-              <p style={{ margin: '0 0 9px', fontSize: 12, color: INK2 }}>Terms are combined with AND. Plain words match ids, merchant, refs, type and category.</p>
-              {SEARCH_HELP.map(([syntax, note], i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '148px 1fr', gap: 10, padding: '3px 0', borderTop: `1px solid ${C.rowRule}` }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, color: INK }}>{syntax}</span>
-                  <span style={{ fontSize: 11, color: '#7b8697' }}>{note}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <SearchHelp
+          open={br.helpOpen}
+          onToggle={() => setBr((b) => ({ ...b, helpOpen: !b.helpOpen }))}
+          onClose={() => setBr((b) => ({ ...b, helpOpen: false }))}
+          align="right"
+        />
         <div ref={catMenuRef} style={{ position: 'relative' }}>
           <button
             type="button"
@@ -222,58 +230,90 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
         </div>
       )}
 
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
+      <div ref={tableRef} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
         <div role="table" aria-label="Breaks" style={{ fontSize: 13 }}>
-          <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
+          <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697', position: 'sticky', top: 56, zIndex: 5 }}>
             <SortHeader label="Category" active={sortKey === 'category'} dir={sortDir} onClick={() => setSort('category')} />
             <SortHeader label="Merchant" active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
             <SortHeader label="Merchant ref" active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />
-            <SortHeader label="Gross" right active={sortKey === 'gross'} dir={sortDir} onClick={() => setSort('gross')} />
-            <SortHeader label="Settled" right active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
-            <SortHeader label="Discrepancy" right active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
-            <SortHeader label="Captured on" active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
-            <SortHeader label="Settled on" active={sortKey === 'date'} dir={sortDir} onClick={() => setSort('date')} />
+            <SortHeader label="Gross" right={isRight('gross')} active={sortKey === 'gross'} dir={sortDir} onClick={() => setSort('gross')} />
+            <SortHeader label="Settled" right={isRight('settled')} active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
+            <SortHeader label="Discrepancy" right={isRight('impact')} active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
+            <SortHeader label="Captured on" right={isRight('captured')} active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
+            <SortHeader label="Settled on" right={isRight('date')} active={sortKey === 'date'} dir={sortDir} onClick={() => setSort('date')} />
             <span role="columnheader" />
           </div>
 
-          {filtered.length === 0 && <div style={{ padding: '26px 16px', color: '#9aa3b0', fontSize: 13 }}>No breaks match the current filters.</div>}
+          {filtered.length === 0 && <div style={{ padding: '40px 18px', textAlign: 'center', color: '#7b8697', fontSize: 13 }}>No breaks match these filters.</div>}
 
           {filtered.map((r) => {
             const open = expanded === r.id;
-            const w = (Math.abs(r.rowImpact) / maxImpact) * 48;
             const impactColor = r.rowImpact === 0 ? INK2 : r.rowImpact < 0 ? NEG : POS;
+            const ledgerRef = r.ledger ? r.ledger.merchantRef || '' : '';
+            const settleRef = r.settlements[0] ? r.settlements[0].merchantRef || '' : '';
+            const primaryRef = r.ledger ? ledgerRef || '—' : settleRef || '—';
+            const refLine2 = r.ledger && settleRef && settleRef !== ledgerRef ? settleRef : null;
+            const ledgerId = r.ledger ? r.ledger.id : null;
+            const netRef = r.settlements[0] ? r.settlements[0].ref : null;
+            const toggle = () => setExpanded(open ? null : r.id);
             return (
-              <div key={r.id} style={{ borderBottom: `1px solid ${C.rowRule}` }}>
-                <HoverRow
+              // Hover lives on the wrapper so the cells, the subline and the expanded
+              // detail all tint together as one row (design lines 407/431).
+              <HoverRow key={r.id} style={{ borderBottom: `1px solid ${C.rowRule}` }} hoverStyle={{ background: C.hover }}>
+                <div
                   role="row"
                   aria-expanded={open}
-                  onClick={() => setExpanded(open ? null : r.id)}
-                  style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, padding: '10px 16px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}
-                  hoverStyle={{ background: C.hover }}
+                  onClick={toggle}
+                  style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '10px 16px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}
                 >
                   <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, fontFamily: SANS }}>
                     <SevDot color={SEV_COLOR[getCategory(r.category).sev]} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(r.category).label}</span>
                   </span>
                   <span role="cell" style={{ color: INK2, fontSize: 12, alignSelf: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.merchantId}</span>
-                  <span role="cell" style={{ color: INK2, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', alignSelf: 'center' }}>
-                    {r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—'}
+                  <span role="cell" style={{ display: 'grid', gap: 2, alignContent: 'center', minWidth: 0, overflow: 'hidden' }}>
+                    <span style={{ color: INK2, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryRef}</span>
+                    {refLine2 && <span style={{ color: '#9aa3b0', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{refLine2}</span>}
                   </span>
-                  <span role="cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{r.ledger ? fmt(r.ledger.gross) : '—'}</span>
-                  <span role="cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{r.settlements.length ? fmt(r.rowActual) : '—'}</span>
-                  <span role="cell" style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 500, color: impactColor }}>{sfmt(r.rowImpact)}</span>
-                  <span role="cell" style={{ color: r.ledger ? INK2 : '#9aa3b0', fontSize: 12, alignSelf: 'center' }}>{r.ledger ? r.ledger.capturedAt : '—'}</span>
-                  <span role="cell" style={{ color: INK2, fontSize: 12, alignSelf: 'center' }}>{r.date}</span>
-                  <span role="cell" aria-hidden="true" style={{ color: '#9aa3b0', alignSelf: 'center' }}>{open ? '▴' : '▾'}</span>
-                </HoverRow>
+                  <span role="cell" style={{ ...cell('gross'), whiteSpace: 'nowrap' }}>{r.ledger ? fmt(r.ledger.gross) : '—'}</span>
+                  <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap' }}>{r.settlements.length ? fmt(r.rowActual) : '—'}</span>
+                  <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', fontWeight: 500, color: impactColor }}>{sfmt(r.rowImpact)}</span>
+                  <span role="cell" style={{ ...cell('captured'), color: r.ledger ? INK2 : '#9aa3b0', fontSize: 12, alignSelf: 'center' }}>{r.ledger ? r.ledger.capturedAt : '—'}</span>
+                  <span role="cell" style={{ ...cell('date'), color: INK2, fontSize: 12, alignSelf: 'center' }}>{r.date}</span>
+                  <span role="cell" aria-hidden="true" style={{ ...cell('caret'), color: '#9aa3b0', alignSelf: 'center' }}>{open ? '▴' : '▾'}</span>
+                </div>
+                {(ledgerId || netRef) && (
+                  <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px 7px', marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: '#7b8697', whiteSpace: 'nowrap' }}>
+                    <button
+                      type="button"
+                      disabled={!ledgerId}
+                      title="Copy internal txn id"
+                      onClick={(e) => { e.stopPropagation(); copyText(ledgerId, 'Internal txn id', flash); }}
+                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: ledgerId ? 'inherit' : '#c2c8d2', cursor: ledgerId ? 'copy' : 'default' }}
+                    >
+                      {ledgerId || 'no ledger id'}
+                    </button>
+                    <span aria-hidden="true" style={{ color: '#cfd6e0' }}>·</span>
+                    <button
+                      type="button"
+                      disabled={!netRef}
+                      title="Copy network ref"
+                      onClick={(e) => { e.stopPropagation(); copyText(netRef, 'Network ref', flash); }}
+                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: netRef ? 'inherit' : '#c2c8d2', cursor: netRef ? 'copy' : 'default' }}
+                    >
+                      {netRef ? shortRefOf(netRef) : 'no settlement'}
+                    </button>
+                  </div>
+                )}
                 {open && <BreakDetail row={r} model={model} />}
-              </div>
+              </HoverRow>
             );
           })}
         </div>
-        <p style={{ margin: 0, padding: '10px 16px', borderTop: `1px solid ${C.borderSoft}`, fontSize: 11, color: '#9aa3b0' }}>
-          {filtered.length} of {breaks.length} breaks
-        </p>
+        <div style={{ padding: '11px 16px', borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceAlt, borderRadius: '0 0 8px 8px', fontSize: 11, color: '#9aa3b0', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span>{filtered.length} of {breaks.length} breaks · sorted by {sortLabel}</span>
+          <span style={{ fontFamily: MONO }}>{deepLink}</span>
+        </div>
       </div>
     </section>
   );

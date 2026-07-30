@@ -1,10 +1,22 @@
-import React from 'react';
-import { categorySummary } from '../../domain/selectors.js';
+import React, { useRef } from 'react';
+import { categorySummary, figures } from '../../domain/selectors.js';
 import { dec, downloadCsv } from '../../domain/format.js';
-import { C, MONO, SANS, INK, INK2 } from '../../styles/tokens.js';
+import { C, MONO, SANS, INK, NEG, POS } from '../../styles/tokens.js';
+import { useColumns } from '../../styles/columns.js';
 import { HoverRow, SevDot, GhostButton } from '../common.jsx';
 
-const COLS = 'minmax(182px, 1.5fr) minmax(74px, 0.8fr) minmax(58px, 0.6fr) minmax(76px, 0.8fr) repeat(6, minmax(90px, 1fr))';
+const SPEC = [
+  { key: 'category', min: 120 },
+  { key: 'severity', min: 56 },
+  { key: 'totalCount', min: 40, align: 'right' },
+  { key: 'sides', min: 48, align: 'right' },
+  { key: 'sales', min: 64, align: 'right' },
+  { key: 'refunds', min: 64, align: 'right' },
+  { key: 'fees', min: 64, align: 'right' },
+  { key: 'expected', min: 64, align: 'right' },
+  { key: 'settled', min: 64, align: 'right' },
+  { key: 'impact', min: 64, align: 'right' },
+];
 const rowPad = '10px';
 
 const HeadCell = ({ children, right, title }) => (
@@ -24,7 +36,12 @@ const Num = ({ children, color }) => (
 );
 
 export default function CategoryTable({ model, nav, flash }) {
+  const tableRef = useRef(null);
+  const { template: COLS, gap: GAP } = useColumns(tableRef, SPEC);
   const { rows, totals } = categorySummary(model);
+  // Footer discrepancy carries the same sign colour as the headline tile.
+  const disc = figures(model).discrepancy;
+  const discColor = disc === 0 ? INK : disc < 0 ? NEG : POS;
 
   const exportCsv = () => {
     const n = downloadCsv(
@@ -65,13 +82,13 @@ export default function CategoryTable({ model, nav, flash }) {
         <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
       </div>
 
-      <div role="table" aria-label="Reconciliation summary" style={{ fontSize: 13 }}>
+      <div ref={tableRef} role="table" aria-label="Reconciliation summary" style={{ fontSize: 13 }}>
         <div
           role="row"
           style={{
             display: 'grid',
             gridTemplateColumns: COLS,
-            gap: 10,
+            gap: GAP,
             padding: '9px 18px',
             borderBottom: `1px solid ${C.border}`,
             background: C.surfaceAlt,
@@ -101,7 +118,7 @@ export default function CategoryTable({ model, nav, flash }) {
             style={{
               display: 'grid',
               gridTemplateColumns: COLS,
-              gap: 10,
+              gap: GAP,
               padding: `${rowPad} 18px`,
               borderBottom: `1px solid ${C.rowRule}`,
               cursor: 'pointer',
@@ -151,7 +168,7 @@ export default function CategoryTable({ model, nav, flash }) {
           style={{
             display: 'grid',
             gridTemplateColumns: COLS,
-            gap: 10,
+            gap: GAP,
             padding: '11px 18px',
             borderTop: `1px solid ${C.borderStrong}`,
             background: C.surfaceAlt,
@@ -169,7 +186,7 @@ export default function CategoryTable({ model, nav, flash }) {
           <Num color={INK}>{totals.fees}</Num>
           <Num color={INK}>{totals.expected}</Num>
           <Num color={INK}>{totals.settled}</Num>
-          <Num color={INK2}>{totals.discrepancy}</Num>
+          <Num color={discColor}>{totals.discrepancy}</Num>
         </div>
       </div>
     </section>

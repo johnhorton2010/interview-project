@@ -38,18 +38,24 @@ function PayoutPanel({ model, nav }) {
   const max = f.sales || 1;
   const bar = (v, from) => ({ left: (from / max) * 100, width: (Math.abs(v) / max) * 100 });
 
+  // Per-term tooltips, matching the design's `linkTitle` values.
+  const nRows = model.included.length;
+  const nSales = model.included.filter((r) => r.ledger && r.ledger.type === 'SALE').length;
+  const nRefunds = model.included.filter((r) => r.ledger && r.ledger.type === 'REFUND').length;
+  const FEE_TITLE = 'Open each settlement — the settlement view itemises interchange and processor fees';
+
   const terms = [
-    { label: 'Gross ledger sales', value: fmt(f.sales), color: INK, barColor: '#9fb4d9', bar: bar(f.sales, 0), onClick: () => nav.toTransactions({ type: 'SALE', sortKey: 'gross' }) },
-    { label: 'Less gross refunds', value: '−' + fmt(f.refunds), color: NEG, barColor: '#e2b3b5', bar: bar(f.refunds, f.sales - f.refunds), onClick: () => nav.toTransactions({ type: 'REFUND', sortKey: 'gross' }) },
-    { label: 'Less total fees', value: '−' + fmt(f.fees), color: NEG, barColor: '#e2b3b5', bar: bar(f.fees, f.expected), toggle: true, onClick: () => nav.toTransactions({ sortKey: 'fees' }) },
+    { label: 'Gross ledger sales', value: fmt(f.sales), color: INK, barColor: '#9fb4d9', bar: bar(f.sales, 0), rule: 'transparent', title: `Open the ${nSales} sale rows behind this figure`, onClick: () => nav.toTransactions({ type: 'SALE', sortKey: 'gross' }) },
+    { label: 'Less gross refunds', value: '−' + fmt(f.refunds), color: NEG, barColor: '#e2b3b5', bar: bar(f.refunds, f.sales - f.refunds), title: `Open the ${nRefunds} refund rows behind this figure`, onClick: () => nav.toTransactions({ type: 'REFUND', sortKey: 'gross' }) },
+    { label: 'Less total fees', value: '−' + fmt(f.fees), color: NEG, barColor: '#e2b3b5', bar: bar(f.fees, f.expected), toggle: true, title: `Open all ${nRows} rows sorted by fees charged`, onClick: () => nav.toTransactions({ sortKey: 'fees' }) },
   ];
   if (feesOpen) {
-    terms.push({ label: '   Interchange fees', value: '−' + fmt(f.interchange), color: INK2, barColor: '#c3cede', bar: bar(f.interchange, f.expected), onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'fees' }) });
-    terms.push({ label: '   Processor fees', value: '−' + fmt(f.processor), color: INK2, barColor: '#c3cede', bar: bar(f.processor, f.expected), onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'fees' }) });
+    terms.push({ label: '   Interchange fees', value: '−' + fmt(f.interchange), color: INK2, barColor: '#c3cede', bar: bar(f.interchange, f.expected), title: FEE_TITLE, onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'fees' }) });
+    terms.push({ label: '   Processor fees', value: '−' + fmt(f.processor), color: INK2, barColor: '#c3cede', bar: bar(f.processor, f.expected), title: FEE_TITLE, onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'fees' }) });
   }
-  terms.push({ label: 'Expected payout', value: fmt(f.expected), color: INK, strong: true, barColor: ACCENT, bar: bar(f.expected, 0), rule: C.borderStrong, onClick: () => nav.toTransactions({}) });
-  terms.push({ label: 'Actual settled', value: fmt(f.actual), color: INK, barColor: '#7f8b9d', bar: bar(f.actual, 0), onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'settled' }) });
-  terms.push({ label: 'Total discrepancy', value: sfmt(f.discrepancy), color: f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS, strong: true, barColor: f.discrepancy < 0 ? NEG : POS, bar: bar(f.discrepancy, Math.min(f.expected, f.actual)), rule: C.borderStrong, onClick: () => nav.toBreaks() });
+  terms.push({ label: 'Expected payout', value: fmt(f.expected), color: INK, strong: true, barColor: ACCENT, bar: bar(f.expected, 0), rule: C.borderStrong, title: `Open all ${nRows} reconciled rows this figure is derived from`, onClick: () => nav.toTransactions({}) });
+  terms.push({ label: 'Actual settled', value: fmt(f.actual), color: INK, barColor: '#7f8b9d', bar: bar(f.actual, 0), title: `Open the ${f.includedSettle} settlements that sum to this figure`, onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'settled' }) });
+  terms.push({ label: 'Total discrepancy', value: sfmt(f.discrepancy), color: f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS, strong: true, barColor: f.discrepancy < 0 ? NEG : POS, bar: bar(f.discrepancy, Math.min(f.expected, f.actual)), rule: C.borderStrong, title: `Open the ${f.breakCount} breaks that contribute a non-zero amount`, onClick: () => nav.toBreaks() });
 
   return (
     <section aria-label="Payout derivation" style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px 20px 20px', marginBottom: 16 }}>
@@ -71,9 +77,9 @@ function PayoutPanel({ model, nav }) {
             <div style={{ height: 6, background: C.pageBg, borderRadius: 3, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${t.bar.left}%`, width: `${t.bar.width}%`, background: t.barColor, borderRadius: 3 }} />
             </div>
-            <button type="button" onClick={t.onClick} title="Open the rows behind this figure" style={{ border: 0, background: 'none', padding: 0, textAlign: 'right', fontFamily: MONO, fontSize: t.strong ? 16 : 13, fontWeight: t.strong ? 600 : 400, fontVariantNumeric: 'tabular-nums', color: t.color, cursor: 'pointer' }}>
+            <Btn onClick={t.onClick} title={t.title} style={{ border: 0, background: 'none', padding: 0, textAlign: 'right', fontFamily: MONO, fontSize: t.strong ? 16 : 13, fontWeight: t.strong ? 600 : 400, fontVariantNumeric: 'tabular-nums', color: t.color, cursor: 'pointer' }} hoverStyle={{ textDecoration: 'underline' }}>
               {t.value}
-            </button>
+            </Btn>
           </div>
         ))}
       </div>
@@ -115,7 +121,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, expanded
 
         <Tile style={{ ...tileBase, background: discTileBg, border: `1px solid ${discTileBorder}` }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Total discrepancy</div>
-          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: discColor }}>{sfmt(f.discrepancy)}</div>
+          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', color: discColor }}>{sfmt(f.discrepancy)}</div>
           <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>{discNote}</div>
         </Tile>
 
@@ -128,7 +134,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, expanded
 
       <PayoutPanel model={model} nav={nav} />
 
-      <nav id="report-tabs" aria-label="Report sections" style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.border}`, marginBottom: 16, flexWrap: 'wrap' }}>
+      <nav id="report-tabs" aria-label="Report sections" style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.border}`, marginBottom: 16 }}>
         <TabButton label="Summary" active={tab === 'categories'} onClick={() => nav.goTab('categories')} />
         <TabButton label="Merchants" active={tab === 'merchants'} onClick={() => nav.goTab('merchants')} />
         <TabButton label={`Breaks · ${f.breakCount}`} active={tab === 'breaks'} onClick={() => nav.goTab('breaks')} />

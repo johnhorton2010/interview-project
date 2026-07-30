@@ -68,8 +68,8 @@ export default function App() {
   const [expanded, setExpanded] = useState(null);
   const [toast, setToast] = useState(null);
   const [br, setBr] = useState({ query: '', catFilter: [], merchantFilter: null, sortKey: 'impact', sortDir: 'desc', catOpen: false, helpOpen: false });
-  const [tx, setTx] = useState({ query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', catOpen: false });
-  const [reset, setReset] = useState({ open: false, phase: 'confirm', phrase: '', done: [], failedAt: null });
+  const [tx, setTx] = useState({ query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', catOpen: false, helpOpen: false });
+  const [reset, setReset] = useState({ open: false, phase: 'confirm', phrase: '', done: [], failedAt: null, error: null });
 
   const toastTimer = useRef(null);
   const flash = useCallback((msg) => {
@@ -207,12 +207,12 @@ export default function App() {
 
   const confirmReset = async () => {
     if (reset.phase === 'confirm' && reset.phrase.trim().toUpperCase() !== 'RESET') return;
-    setReset((r) => ({ ...r, phase: 'running', done: [], failedAt: null }));
+    setReset((r) => ({ ...r, phase: 'running', done: [], failedAt: null, error: null }));
     const res = await runReset();
     if (res.failedAt) {
-      setReset((r) => ({ ...r, phase: 'failed', done: res.done, failedAt: res.failedAt }));
+      setReset((r) => ({ ...r, phase: 'failed', done: res.done, failedAt: res.failedAt, error: res.error }));
     } else {
-      setReset((r) => ({ ...r, phase: 'done', done: res.done, failedAt: null }));
+      setReset((r) => ({ ...r, phase: 'done', done: res.done, failedAt: null, error: null }));
       setLedgerRes(null);
       setSettleRes(null);
       setReconCount(null);
@@ -246,7 +246,7 @@ export default function App() {
         }}
         reset={{
           disabled: !importDone,
-          onOpen: () => setReset({ open: true, phase: 'confirm', phrase: '', done: [], failedAt: null }),
+          onOpen: () => setReset({ open: true, phase: 'confirm', phrase: '', done: [], failedAt: null, error: null }),
           hint: !importDone ? 'Nothing imported yet — there is nothing to delete.' : 'Deletes reconciliations and both source datasets on the server. Irreversible.',
         }}
       />
@@ -292,6 +292,7 @@ export default function App() {
         setPhrase={(v) => setReset((r) => ({ ...r, phrase: v }))}
         done={reset.done}
         failedAt={reset.failedAt}
+        error={reset.error}
         onConfirm={confirmReset}
         onClose={() => reset.phase !== 'running' && setReset((r) => ({ ...r, open: false }))}
       />

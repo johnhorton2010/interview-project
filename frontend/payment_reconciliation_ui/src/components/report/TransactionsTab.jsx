@@ -1,32 +1,134 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { matchAll, refOf, figures } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
 import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
-import { HoverRow, SevDot, GhostButton, useDismiss, segStyle } from '../common.jsx';
+import { useColumns } from '../../styles/columns.js';
+import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText } from '../common.jsx';
+import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
-const LCOLS = 'minmax(80px,0.9fr) minmax(90px,0.8fr) minmax(58px,0.6fr) minmax(76px,0.9fr) minmax(46px,0.45fr) minmax(68px,0.75fr) minmax(74px,0.8fr) minmax(54px,0.6fr) minmax(94px,0.9fr) minmax(58px,1fr) 16px';
-const SCOLS = 'minmax(88px,0.95fr) minmax(86px,0.8fr) minmax(58px,0.6fr) minmax(82px,0.9fr) minmax(44px,0.45fr) minmax(70px,0.75fr) minmax(70px,0.75fr) minmax(54px,0.6fr) minmax(88px,0.9fr) minmax(58px,1fr) 16px';
+/**
+ * Band above a group of one-sided rows. Optionally carries its own column labels,
+ * for bands where a column holds the other side's value than the main header names
+ * (e.g. the id column holds a network ref under an "unattributed settlements" band).
+ *
+ * The labels are inert text, not `role="columnheader"` buttons: sorting is
+ * table-global, so a second set of controls would be ambiguous, and a mid-table
+ * header row would confuse the surrounding `role="table"` semantics.
+ */
+const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
+  <div style={{ padding: '8px 16px', background: '#f7f8fa', borderBottom: `1px solid ${C.borderSoft}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
+    <div>{children}</div>
+    {labels && (
+      // `data-col-labels` opts this line into useColumns' content measurement.
+      <div data-col-labels style={{ display: 'grid', gridTemplateColumns: template, gap, marginTop: 6, color: '#9aa3b0' }}>
+        {/* Order comes from LSPEC, not from the label map's key order, so the two
+            can never desync — the same positional coupling renderRow relies on. */}
+        {LSPEC.map(({ key }) => (
+          <span key={key} style={{ ...col(key), whiteSpace: 'nowrap', overflow: 'hidden' }}>
+            {(overrides && overrides[key]) || labels[key]}
+          </span>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+// Subline under a transaction row, matching the design (mono, 11px, muted). When
+// `disabled` it states an absence ("no settlement") — there is nothing to copy, so
+// it renders as plain text rather than offering a copy affordance that cannot work.
+const Subline = ({ text, label, display, onToggle, flash, note, disabled }) => (
+  <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px 7px', marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: '#7b8697', whiteSpace: 'nowrap' }}>
+    {disabled ? (
+      <span style={{ color: '#c2c8d2' }}>{display}</span>
+    ) : (
+      <button type="button" title={`Copy ${label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copyText(text, label, flash); }} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'copy' }}>
+        {display}
+      </button>
+    )}
+    {note && <span style={{ fontSize: 10, color: '#9aa3b0' }}>{note}</span>}
+  </div>
+);
+
+// Click-to-copy identifier, mono and inheriting row ink until hovered.
+const CopyButton = ({ text, label, display, flash }) => {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <button
+      type="button"
+      title={`Copy ${label.toLowerCase()}`}
+      onClick={(e) => { e.stopPropagation(); copyText(text, label, flash); }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: hover ? ACCENT : INK, cursor: 'copy' }}
+    >
+      {display}
+    </button>
+  );
+};
+
+// Text group, then one uniformly right-aligned measure block. `category` trails the
+// measure block; useColumns pads it automatically so that boundary is not pinched.
+const LSPEC = [
+  { key: 'id', min: 64 },
+  { key: 'captured', min: 64 },
+  { key: 'merchant', min: 64 },
+  { key: 'ref', min: 88 },
+  { key: 'type', min: 44, align: 'right' },
+  // Gross → Fees → Settled → Discrepancy follows the row detail's arithmetic
+  // (gross less fees is what we expected; settled is what arrived) and matches the
+  // Summary and Merchants tables. NOTE: `renderRow` styles cells by position, so
+  // this order and every body-cell array below must stay in lockstep.
+  { key: 'gross', min: 64, align: 'right' },
+  { key: 'fees', min: 48, align: 'right' },
+  { key: 'settled', min: 64, align: 'right' },
+  { key: 'disc', min: 64, align: 'right' },
+  { key: 'category', min: 120 },
+  // Follows the left-aligned `category`, whose trailing void already supplies the
+  // gutter, so the caret must not claim slack of its own.
+  { key: 'caret', min: 8, fixed: true, align: 'right' },
+];
+const SSPEC = LSPEC;
+
 const NATURAL = { id: 'asc', captured: 'desc', merchant: 'asc', ref: 'asc', type: 'asc', gross: 'desc', settled: 'desc', fees: 'desc', disc: 'desc', category: 'asc' };
+
+// One source of truth for column labels, shared by the main header and the band
+// headers so a rename cannot leave the two disagreeing. Only `id` and `captured`
+// differ between the views.
+const LEDGER_LABELS = {
+  id: 'Txn id',
+  captured: 'Captured on',
+  merchant: 'Merchant',
+  ref: 'Merchant ref',
+  type: 'Type',
+  gross: 'Gross',
+  fees: 'Fees',
+  settled: 'Settled',
+  disc: 'Discrepancy',
+  category: 'Category',
+  caret: '',
+};
+const LABELS = {
+  ledger: LEDGER_LABELS,
+  settlement: { ...LEDGER_LABELS, id: 'Network ref', captured: 'Settled on' },
+};
+
+// Search grammar, also offered via the `?` popover. Unlike the Breaks variant this
+// names type and fees, which only exist here.
+const SEARCH_TITLE =
+  'Terms are combined with AND. Plain text matches ids, merchant, refs, type and category. ' +
+  'A decimal matches gross, settled, fees or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
+  'matches either date column; prefix with captured: or settled: to pin it to one.';
 
 const str = (a, b) => String(a || '').localeCompare(String(b || ''));
 const num = (a, b) => (a === null ? 0 : a) - (b === null ? 0 : b);
 
-function Seg({ on, onClick, children }) {
-  const st = segStyle(on);
-  return (
-    <button type="button" onClick={onClick} style={{ border: `1px solid ${on ? '#bcd0f5' : C.border}`, background: st.background, color: st.color, padding: '5px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer' }}>
-      {children}
-    </button>
-  );
-}
-
-function SortH({ label, k, tx, setTx, right }) {
+function SortH({ label, k, tx, setTx, colStyle }) {
   const active = tx.sortKey === k;
   const onClick = () => setTx((t) => (t.sortKey === k ? { ...t, sortKey: k, sortDir: t.sortDir === 'asc' ? 'desc' : 'asc' } : { ...t, sortKey: k, sortDir: NATURAL[k] }));
   return (
-    <button type="button" role="columnheader" aria-sort={active ? (tx.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} onClick={onClick} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', textTransform: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+    <button type="button" role="columnheader" aria-sort={active ? (tx.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} onClick={onClick} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', textTransform: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', ...colStyle }}>
       {label}
       {active ? (tx.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
     </button>
@@ -35,8 +137,11 @@ function SortH({ label, k, tx, setTx, right }) {
 
 export default function TransactionsTab({ model, tx, setTx, expanded, setExpanded, flash }) {
   const catMenuRef = useDismiss(tx.catOpen, () => setTx((t) => ({ ...t, catOpen: false })));
+  const tableRef = useRef(null);
+  const { template: COLS, gap: GAP, cell: col } = useColumns(tableRef, LSPEC);
   const f = figures(model);
   const settleCentric = tx.view === 'settlement';
+  const L = LABELS[settleCentric ? 'settlement' : 'ledger'];
 
   const txVisible = model.included.filter((r) => {
     if (tx.cats.length && !tx.cats.includes(r.category)) return false;
@@ -107,6 +212,20 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const txAll = txVisible.length === model.included.length;
   const tieOk = !txAll || txImpact === f.discrepancy;
 
+  // Footer strip: tie-out note on the left, standing caveat on the right (design lines 729–732).
+  const tieNote = txAll
+    ? tieOk
+      ? settleCentric
+        ? `All ${settleRows.length} included settlements — expected minus settled still nets to ${sfmt(f.discrepancy)}`
+        : `All ${txVisible.length} included rows — impact sums to ${sfmt(txImpact)}, matching the headline discrepancy`
+      : `Impact sums to ${sfmt(txImpact)} but the headline discrepancy is ${sfmt(f.discrepancy)} — the report has a bug`
+    : settleCentric
+      ? `Filtered view — totals cover the ${settleRows.length} visible settlements, not the full dataset`
+      : `Filtered view — totals cover the ${txVisible.length} visible rows, not the full dataset`;
+  const footnote = settleCentric
+    ? '〃 repeats the gross and discrepancy printed on the row above for the same ledger transaction — those figures belong to the transaction, not to each payout, so they are counted once. Quarantined records are excluded; see the Quarantine tab.'
+    : 'Quarantined records are excluded — see the Quarantine tab.';
+
   const exportCsv = () => {
     let n;
     if (settleCentric) {
@@ -115,15 +234,15 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           const parts = o.r.settlements.length;
           const idx = o.r.settlements.indexOf(o.x);
           const carrier = carrierOf[o.r.id] === idx + 1;
-          return [o.x.ref, parts > 1 ? `${idx + 1}/${parts}` : '', o.x.date, o.x.merchantId, o.x.merchantRef || '', o.r.ledger ? (o.r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '', carrier && o.r.ledger ? dec(o.r.ledger.gross) : '', dec(o.x.settled), dec(feesOf(o.x)), carrier ? dec(o.r.rowImpact) : '', getCategory(o.r.category).label, o.r.ledger ? o.r.ledger.id : ''];
+          return [o.x.ref, parts > 1 ? `${idx + 1}/${parts}` : '', o.x.date, o.x.merchantId, o.x.merchantRef || '', o.r.ledger ? (o.r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '', carrier && o.r.ledger ? dec(o.r.ledger.gross) : '', dec(feesOf(o.x)), dec(o.x.settled), carrier ? dec(o.r.rowImpact) : '', getCategory(o.r.category).label, o.r.ledger ? o.r.ledger.id : ''];
         })
         .concat(neverSettled.map((r) => ['', '', '', r.merchantId, r.ledger.merchantRef || '', r.ledger.type === 'SALE' ? 'Sale' : 'Refund', dec(r.ledger.gross), '', '', dec(r.rowImpact), getCategory(r.category).label, r.ledger.id]));
-      n = downloadCsv('transactions-by-settlement.csv', ['Network ref', 'Part', 'Settled on', 'Merchant', 'Merchant ref', 'Type', 'Gross', 'Settled', 'Fees', 'Discrepancy', 'Category', 'Ledger txn'], rows);
+      n = downloadCsv('transactions-by-settlement.csv', ['Network ref', 'Part', 'Settled on', 'Merchant', 'Merchant ref', 'Type', 'Gross', 'Fees', 'Settled', 'Discrepancy', 'Category', 'Ledger txn'], rows);
     } else {
       n = downloadCsv(
         'transactions.csv',
-        ['Txn id', 'Captured on', 'Merchant', 'Merchant ref', 'Type', 'Gross', 'Settled', 'Fees', 'Discrepancy', 'Category', 'Network refs'],
-        txVisible.map((r) => [r.ledger ? r.ledger.id : '', r.ledger ? r.ledger.capturedAt : '', r.merchantId, r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '', r.ledger ? (r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '', dec(r.ledger ? r.ledger.gross : null), r.settlements.length ? dec(r.rowActual) : '', dec(r.rowFees), dec(r.rowImpact), getCategory(r.category).label, r.settlements.map((x) => x.ref).join(' ')]),
+        ['Txn id', 'Captured on', 'Merchant', 'Merchant ref', 'Type', 'Gross', 'Fees', 'Settled', 'Discrepancy', 'Category', 'Network refs'],
+        txVisible.map((r) => [r.ledger ? r.ledger.id : '', r.ledger ? r.ledger.capturedAt : '', r.merchantId, r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '', r.ledger ? (r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '', dec(r.ledger ? r.ledger.gross : null), dec(r.rowFees), r.settlements.length ? dec(r.rowActual) : '', dec(r.rowImpact), getCategory(r.category).label, r.settlements.map((x) => x.ref).join(' ')]),
       );
     }
     flash(`${settleCentric ? 'transactions-by-settlement.csv' : 'transactions.csv'} — ${n} rows exported`);
@@ -132,15 +251,25 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const catLabel = tx.cats.length === 0 ? 'All categories' : tx.cats.length === 1 ? getCategory(tx.cats[0]).label : `${tx.cats.length} categories`;
   const impCol = (c) => (c === 0 ? INK2 : c < 0 ? NEG : POS);
 
-  const renderRow = (key, cols, cells, row) => {
+  const renderRow = (key, cols, cells, row, subline) => {
     const open = expanded === key;
+    const toggle = () => setExpanded(open ? null : key);
     return (
-      <div key={key} style={{ borderBottom: `1px solid ${C.rowRule}` }}>
-        <HoverRow role="row" aria-expanded={open} onClick={() => setExpanded(open ? null : key)} style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, padding: '9px 16px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', alignItems: 'center' }} hoverStyle={{ background: C.hover }}>
-          {cells}
-        </HoverRow>
+      // Hover lives on the wrapper so the cells, the subline and the expanded
+      // detail all tint together as one row (design lines 540/560, 643/663).
+      <HoverRow key={key} style={{ borderBottom: `1px solid ${C.rowRule}` }} hoverStyle={{ background: C.hover }}>
+        <div role="row" aria-expanded={open} onClick={toggle} style={{ display: 'grid', gridTemplateColumns: cols, gap: GAP, padding: '10px 16px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', alignItems: 'center' }}>
+          {/* Alignment and R5 padding come from the spec by position, so body cells
+              can never drift out of step with the header row. */}
+          {cells.map((c, i) =>
+            React.isValidElement(c)
+              ? React.cloneElement(c, { key: i, style: { ...c.props.style, ...col(LSPEC[i].key) } })
+              : c,
+          )}
+        </div>
+        {subline && React.cloneElement(subline, { onToggle: toggle, flash })}
         {open && row && <BreakDetail row={row} model={model} />}
-      </div>
+      </HoverRow>
     );
   };
 
@@ -150,28 +279,91 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     </span>
   );
 
+  /** Category cell: severity swatch plus the label in row ink (design lines 553, 656). */
+  const catCell = (category) => (
+    <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: SANS, fontSize: 12, minWidth: 0 }}>
+      <SevDot color={SEV_COLOR[getCategory(category).sev]} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(category).label}</span>
+    </span>
+  );
+
+  /** Identifier cell: click-to-copy, matching the design's `onCopyId` buttons. */
+  const idCell = (display, text, label) => (
+    <span role="cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <CopyButton text={text} label={label} display={display} flash={flash} />
+    </span>
+  );
+
+  const renderLedgerRow = (r) => {
+    const n = r.settlements.length;
+    const settled = n ? (
+      <>
+        {fmt(r.rowActual)}
+        {n > 1 && <span style={{ color: '#9aa3b0', fontSize: 11 }}> +{n - 1}</span>}
+      </>
+    ) : '—';
+    const refs = r.settlements.map((x) => x.ref);
+    const refDisplay = refs.length ? shortRefOf(refs[0]) + (refs.length > 1 ? ` +${refs.length - 1}` : '') : '';
+    return renderRow(
+      r.id,
+      COLS,
+      [
+        r.ledger
+          ? idCell(r.ledger.id, r.ledger.id, 'Identifier')
+          : idCell(shortRefOf(r.settlements[0].ref), r.settlements[0].ref, 'Network ref'),
+        cell(r.ledger ? r.ledger.capturedAt : 'no ledger', { color: INK2, size: 12 }),
+        cell(r.merchantId, { color: INK2, size: 12 }),
+        cell(r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—', { color: INK2, size: 12 }),
+        cell(r.ledger ? (r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '—', { sans: true, size: 12, color: r.ledger && r.ledger.type === 'REFUND' ? NEG : INK2 }),
+        cell(r.ledger ? fmt(r.ledger.gross) : '—', { right: true }),
+        cell(fmt(r.rowFees), { right: true, color: INK2 }),
+        cell(settled, { right: true }),
+        cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
+        catCell(r.category),
+        cell(expanded === r.id ? '▴' : '▾', { right: true, color: '#9aa3b0', size: 11 }),
+      ],
+      r,
+      // Gated on the ledger side, not on refs (design: `hasRefSubline: !!r.ledger`).
+      // An unattributed row already shows its network ref in the id cell, so a subline
+      // there would repeat it verbatim; a row with a ledger side but no payout instead
+      // states the absence.
+      r.ledger ? (
+        <Subline
+          text={refs.join(' ')}
+          label={refs.length > 1 ? 'Network refs' : 'Network ref'}
+          display={refs.length ? refDisplay : 'no settlement'}
+          disabled={!refs.length}
+        />
+      ) : null,
+    );
+  };
+
   return (
     <section>
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <Seg on={!settleCentric} onClick={() => setTx((t) => ({ ...t, view: 'ledger' }))}>Ledger view</Seg>
-          <Seg on={settleCentric} onClick={() => setTx((t) => ({ ...t, view: 'settlement' }))}>Settlement view</Seg>
+      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+        <input type="search" value={tx.query} onChange={(e) => setTx((t) => ({ ...t, query: e.target.value }))} placeholder="Search id, merchant, ref, amount, or date — e.g. captured:2026-06-01..2026-06-05" title={SEARCH_TITLE} style={{ flex: 1, minWidth: 220, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK }} />
+        <SearchHelp
+          open={tx.helpOpen}
+          onToggle={() => setTx((t) => ({ ...t, helpOpen: !t.helpOpen }))}
+          onClose={() => setTx((t) => ({ ...t, helpOpen: false }))}
+          align="left"
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: '#9aa3b0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>View</span>
+          <SegGroup
+            options={[
+              { label: 'Ledger', on: !settleCentric, title: 'One row per internal ledger transaction', onClick: () => setTx((t) => ({ ...t, view: 'ledger' })) },
+              { label: 'Settlement', on: settleCentric, title: 'One row per processor settlement', onClick: () => setTx((t) => ({ ...t, view: 'settlement' })) },
+            ]}
+          />
         </div>
-        {!settleCentric && (
-          <div style={{ display: 'flex', gap: 4 }}>
-            <Seg on={tx.type === 'all'} onClick={() => setTx((t) => ({ ...t, type: 'all' }))}>All</Seg>
-            <Seg on={tx.type === 'SALE'} onClick={() => setTx((t) => ({ ...t, type: 'SALE' }))}>Sales</Seg>
-            <Seg on={tx.type === 'REFUND'} onClick={() => setTx((t) => ({ ...t, type: 'REFUND' }))}>Refunds</Seg>
-          </div>
-        )}
-        <input type="search" value={tx.query} onChange={(e) => setTx((t) => ({ ...t, query: e.target.value }))} placeholder="Search…" style={{ flex: 1, minWidth: 200, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK }} />
         <div ref={catMenuRef} style={{ position: 'relative' }}>
           <button type="button" aria-expanded={tx.catOpen} onClick={() => setTx((t) => ({ ...t, catOpen: !t.catOpen }))} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${tx.cats.length ? '#bcd0f5' : C.border}`, background: tx.cats.length ? '#eaf0fd' : '#fff', color: tx.cats.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <span>{catLabel}</span>
             <span aria-hidden="true" style={{ color: '#9aa3b0', fontSize: 10 }}>▾</span>
           </button>
           {tx.catOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30, width: 272, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6 }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 30, width: 272, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
               {catOptions.map((k) => {
                 const on = tx.cats.includes(k);
                 return (
@@ -192,26 +384,45 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
             </div>
           )}
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: '#9aa3b0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Type</span>
+          <SegGroup
+            options={[
+              { label: 'All', on: tx.type === 'all', onClick: () => setTx((t) => ({ ...t, type: 'all' })) },
+              { label: 'Sales', on: tx.type === 'SALE', onClick: () => setTx((t) => ({ ...t, type: 'SALE' })) },
+              { label: 'Refunds', on: tx.type === 'REFUND', onClick: () => setTx((t) => ({ ...t, type: 'REFUND' })) },
+            ]}
+          />
+        </div>
         <div style={{ marginLeft: 'auto' }}>
           <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px', overflowX: 'auto' }}>
-        <div role="table" aria-label="Transactions" style={{ fontSize: 13, minWidth: 900 }}>
+      {/* No overflow container here: it would trap the sticky column header inside
+          its own scroll box. */}
+      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px', minWidth: 0 }}>
+        {/* The design ships two separate tables with distinct names; keep them
+            distinguishable to assistive tech even though we render one wrapper. */}
+        <div
+          ref={tableRef}
+          role="table"
+          aria-label={settleCentric ? 'Transactions by settlement' : 'Transactions by ledger transaction'}
+          style={{ fontSize: 13 }}
+        >
           {settleCentric ? (
             <>
-              <div role="row" style={{ display: 'grid', gridTemplateColumns: SCOLS, gap: 8, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
-                <SortH label="Network ref" k="id" tx={tx} setTx={setTx} />
-                <SortH label="Settled on" k="captured" tx={tx} setTx={setTx} />
-                <SortH label="Merchant" k="merchant" tx={tx} setTx={setTx} />
-                <SortH label="Merchant ref" k="ref" tx={tx} setTx={setTx} />
-                <SortH label="Type" k="type" tx={tx} setTx={setTx} />
-                <SortH label="Gross" k="gross" tx={tx} setTx={setTx} right />
-                <SortH label="Settled" k="settled" tx={tx} setTx={setTx} right />
-                <SortH label="Fees" k="fees" tx={tx} setTx={setTx} right />
-                <SortH label="Discrepancy" k="disc" tx={tx} setTx={setTx} right />
-                <SortH label="Category" k="category" tx={tx} setTx={setTx} />
+              <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697', position: 'sticky', top: 56, zIndex: 5 }}>
+                <SortH label={L.id} k="id" tx={tx} setTx={setTx} colStyle={col('id')} />
+                <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
+                <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
+                <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} colStyle={col('ref')} />
+                <SortH label={L.type} k="type" tx={tx} setTx={setTx} colStyle={col('type')} />
+                <SortH label={L.gross} k="gross" tx={tx} setTx={setTx} colStyle={col('gross')} />
+                <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} colStyle={col('fees')} />
+                <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} colStyle={col('settled')} />
+                <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} colStyle={col('disc')} />
+                <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
                 <span role="columnheader" />
               </div>
               {settleRows.length === 0 && neverSettled.length === 0 && <div style={{ padding: '26px 16px', color: '#9aa3b0' }}>No settlements match.</div>}
@@ -219,31 +430,44 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 const idx = o.r.settlements.indexOf(o.x);
                 const carrier = carrierOf[o.r.id] === idx + 1;
                 const parts = o.r.settlements.length;
+                // One string for both carried cells, as the design's `inheritTitle` does:
+                // gross and discrepancy belong to the transaction, not to each payout.
+                const inheritTitle = carrier
+                  ? ''
+                  : `Same ledger transaction — gross and discrepancy are shown on part ${carrierOf[o.r.id]} of ${parts}`;
                 return renderRow(
                   o.x.ref,
-                  SCOLS,
+                  COLS,
                   [
-                    cell(shortRefOf(o.x.ref), { key: 'a' }),
+                    idCell(shortRefOf(o.x.ref), o.x.ref, 'Network ref'),
                     cell(o.x.date, { color: INK2, size: 12 }),
                     cell(o.x.merchantId, { color: INK2, size: 12 }),
                     cell(o.x.merchantRef || '—', { color: INK2, size: 12 }),
                     cell(o.r.ledger ? (o.r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '—', { sans: true, size: 12, color: o.r.ledger && o.r.ledger.type === 'REFUND' ? NEG : INK2 }),
-                    cell(carrier ? (o.r.ledger ? fmt(o.r.ledger.gross) : '—') : '〃', { right: true, color: carrier && o.r.ledger ? INK : '#9aa3b0', title: carrier ? '' : `Same ledger transaction — gross shown on part ${carrierOf[o.r.id]} of ${parts}` }),
-                    cell(fmt(o.x.settled), { right: true }),
+                    cell(carrier ? (o.r.ledger ? fmt(o.r.ledger.gross) : '—') : '〃', { right: true, color: carrier && o.r.ledger ? INK : '#9aa3b0', title: inheritTitle }),
                     cell(feesOf(o.x) === 0 ? '—' : fmt(feesOf(o.x)), { right: true, color: INK2 }),
-                    cell(carrier ? sfmt(o.r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? impCol(o.r.rowImpact) : '#9aa3b0' }),
-                    cell(getCategory(o.r.category).label, { sans: true, size: 12, color: SEV_COLOR[getCategory(o.r.category).sev] }),
-                    cell(expanded === o.x.ref ? '▴' : '▾', { color: '#9aa3b0' }),
+                    cell(fmt(o.x.settled), { right: true }),
+                    cell(carrier ? sfmt(o.r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? impCol(o.r.rowImpact) : '#9aa3b0', title: inheritTitle }),
+                    catCell(o.r.category),
+                    cell(expanded === o.x.ref ? '▴' : '▾', { right: true, color: '#9aa3b0', size: 11 }),
                   ],
                   o.r,
+                  o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} note={parts > 1 ? `part ${idx + 1} of ${parts}` : null} /> : null,
                 );
               })}
+              {neverSettled.length > 0 && (
+                <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} template={COLS} gap={GAP} col={col}>
+                  Never settled — ledger transactions with no payout
+                </SectionHeader>
+              )}
               {neverSettled.map((r) =>
                 renderRow(
                   r.id,
-                  SCOLS,
+                  COLS,
                   [
-                    cell('—', { color: '#9aa3b0' }),
+                    // No network ref exists for this row, so the id column carries the
+                    // ledger txn id — its only identifier — rather than a bare dash.
+                    idCell(r.ledger.id, r.ledger.id, 'Identifier'),
                     cell('unsettled', { color: '#9aa3b0', sans: true, size: 12 }),
                     cell(r.merchantId, { color: INK2, size: 12 }),
                     cell(r.ledger.merchantRef || '—', { color: INK2, size: 12 }),
@@ -252,66 +476,67 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                     cell('—', { right: true, color: '#9aa3b0' }),
                     cell('—', { right: true, color: '#9aa3b0' }),
                     cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
-                    cell(getCategory(r.category).label, { sans: true, size: 12, color: SEV_COLOR[getCategory(r.category).sev] }),
-                    cell(expanded === r.id ? '▴' : '▾', { color: '#9aa3b0' }),
+                    catCell(r.category),
+                    cell(expanded === r.id ? '▴' : '▾', { right: true, color: '#9aa3b0', size: 11 }),
                   ],
                   r,
+                  // The txn id now sits in the id cell above, so a subline would repeat it.
+                  null,
                 ),
               )}
             </>
           ) : (
             <>
-              <div role="row" style={{ display: 'grid', gridTemplateColumns: LCOLS, gap: 8, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
-                <SortH label="Txn id" k="id" tx={tx} setTx={setTx} />
-                <SortH label="Captured on" k="captured" tx={tx} setTx={setTx} />
-                <SortH label="Merchant" k="merchant" tx={tx} setTx={setTx} />
-                <SortH label="Merchant ref" k="ref" tx={tx} setTx={setTx} />
-                <SortH label="Type" k="type" tx={tx} setTx={setTx} />
-                <SortH label="Gross" k="gross" tx={tx} setTx={setTx} right />
-                <SortH label="Settled" k="settled" tx={tx} setTx={setTx} right />
-                <SortH label="Fees" k="fees" tx={tx} setTx={setTx} right />
-                <SortH label="Discrepancy" k="disc" tx={tx} setTx={setTx} right />
-                <SortH label="Category" k="category" tx={tx} setTx={setTx} />
+              <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697', position: 'sticky', top: 56, zIndex: 5 }}>
+                <SortH label={L.id} k="id" tx={tx} setTx={setTx} colStyle={col('id')} />
+                <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
+                <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
+                <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} colStyle={col('ref')} />
+                <SortH label={L.type} k="type" tx={tx} setTx={setTx} colStyle={col('type')} />
+                <SortH label={L.gross} k="gross" tx={tx} setTx={setTx} colStyle={col('gross')} />
+                <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} colStyle={col('fees')} />
+                <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} colStyle={col('settled')} />
+                <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} colStyle={col('disc')} />
+                <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
                 <span role="columnheader" />
               </div>
               {ledgerRows.length === 0 && orphanRows.length === 0 && <div style={{ padding: '26px 16px', color: '#9aa3b0' }}>No transactions match.</div>}
-              {ledgerRows.concat(orphanRows).map((r) =>
-                renderRow(
-                  r.id,
-                  LCOLS,
-                  [
-                    cell(r.ledger ? r.ledger.id : shortRefOf(r.settlements[0].ref)),
-                    cell(r.ledger ? r.ledger.capturedAt : 'no ledger', { color: INK2, size: 12 }),
-                    cell(r.merchantId, { color: INK2, size: 12 }),
-                    cell(r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—', { color: INK2, size: 12 }),
-                    cell(r.ledger ? (r.ledger.type === 'SALE' ? 'Sale' : 'Refund') : '—', { sans: true, size: 12, color: r.ledger && r.ledger.type === 'REFUND' ? NEG : INK2 }),
-                    cell(r.ledger ? fmt(r.ledger.gross) : '—', { right: true }),
-                    cell(r.settlements.length ? fmt(r.rowActual) : '—', { right: true }),
-                    cell(fmt(r.rowFees), { right: true, color: INK2 }),
-                    cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
-                    cell(getCategory(r.category).label, { sans: true, size: 12, color: SEV_COLOR[getCategory(r.category).sev] }),
-                    cell(expanded === r.id ? '▴' : '▾', { color: '#9aa3b0' }),
-                  ],
-                  r,
-                ),
+              {ledgerRows.map(renderLedgerRow)}
+              {orphanRows.length > 0 && (
+                <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} template={COLS} gap={GAP} col={col}>
+                  Unattributed settlements — no ledger side
+                </SectionHeader>
               )}
+              {orphanRows.map(renderLedgerRow)}
             </>
           )}
 
-          <div role="row" style={{ display: 'grid', gridTemplateColumns: settleCentric ? SCOLS : LCOLS, gap: 8, padding: '11px 16px', borderTop: `1px solid ${C.borderStrong}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
-            <span role="cell" style={{ fontFamily: SANS }}>Total ({settleCentric ? settleRows.length : txVisible.length})</span>
-            <span /><span /><span /><span />
+          <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 16px', borderTop: `1px solid ${C.borderStrong}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+            <span role="cell" style={{ fontFamily: SANS, fontSize: 12 }}>Total</span>
+            <span /><span />
+            {/* Settlement view prints its count in Merchant ref; ledger view in Type. */}
+            {settleCentric ? (
+              <>
+                <span role="cell" style={{ fontFamily: SANS, fontSize: 12, color: INK2 }}>{settleRows.length} settlements</span>
+                <span />
+              </>
+            ) : (
+              <>
+                <span />
+                <span role="cell" style={{ fontFamily: SANS, fontSize: 12, color: INK2 }}>{txVisible.length} rows</span>
+              </>
+            )}
             <span role="cell" style={{ textAlign: 'right' }}>{fmt(txGross)}</span>
-            <span role="cell" style={{ textAlign: 'right' }}>{fmt(txSettled)}</span>
             <span role="cell" style={{ textAlign: 'right' }}>{fmt(txFees)}</span>
+            <span role="cell" style={{ textAlign: 'right' }}>{fmt(txSettled)}</span>
             <span role="cell" style={{ textAlign: 'right', color: impCol(txImpact) }}>{sfmt(txImpact)}</span>
             <span /><span />
           </div>
         </div>
-        <p style={{ margin: 0, padding: '10px 16px', borderTop: `1px solid ${C.borderSoft}`, fontSize: 11, color: tieOk ? '#9aa3b0' : NEG }}>
-          {txAll ? (tieOk ? `All ${txVisible.length} included rows — impact sums to ${sfmt(txImpact)}, matching the headline discrepancy.` : `Impact sums to ${sfmt(txImpact)} but the headline discrepancy is ${sfmt(f.discrepancy)} — the report has a bug.`) : `Filtered view — totals cover the ${txVisible.length} visible rows, not the full dataset.`}
-          {' '}Quarantined records are excluded — see the Quarantine tab.
-        </p>
+        <div style={{ padding: '11px 16px', borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceAlt, borderRadius: '0 0 8px 8px', fontSize: 11, color: tieOk ? '#9aa3b0' : NEG, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span>{tieNote}</span>
+          <span style={{ color: '#9aa3b0', textWrap: 'pretty' }}>{footnote}</span>
+        </div>
       </div>
     </section>
   );

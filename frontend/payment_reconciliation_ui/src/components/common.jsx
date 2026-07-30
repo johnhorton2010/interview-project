@@ -76,19 +76,17 @@ export function Toast({ message }) {
       aria-live="polite"
       style={{
         position: 'fixed',
-        bottom: 24,
+        bottom: 22,
         left: '50%',
         transform: 'translateX(-50%)',
-        zIndex: 60,
+        zIndex: 90,
         background: '#131a24',
-        color: '#fff',
+        color: '#ffffff',
         padding: '9px 16px',
-        borderRadius: 7,
-        fontSize: 12.5,
+        borderRadius: 6,
+        fontSize: 12,
         fontFamily: MONO,
-        boxShadow: '0 8px 24px rgba(19,26,36,0.28)',
-        animation: 'riseIn 140ms ease-out',
-        maxWidth: '80vw',
+        animation: 'riseIn 160ms ease-out',
       }}
     >
       {message}
@@ -146,6 +144,41 @@ export function GhostButton({ children, ...props }) {
 /** Segmented on/off pill (view + type toggles). */
 export function segStyle(on) {
   return { background: on ? '#eaf0fd' : '#ffffff', color: on ? ACCENT : INK2 };
+}
+
+/**
+ * Segmented control: one bordered capsule whose buttons are divided by internal
+ * rules, per the design's `View` / `Type` toggles.
+ * @param {{label: string, on: boolean, onClick: () => void, title?: string}[]} options
+ */
+export function SegGroup({ options }) {
+  return (
+    <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 5, overflow: 'hidden' }}>
+      {options.map((o, i) => (
+        <button
+          key={o.label}
+          type="button"
+          onClick={o.onClick}
+          title={o.title}
+          style={{
+            // Four longhands, not the `border` shorthand: React drops a shorthand's
+            // side when a longhand key for it is in the same object, even when that
+            // key is undefined — which left the first button on the UA's outset bevel.
+            borderTop: 0,
+            borderRight: 0,
+            borderBottom: 0,
+            borderLeft: i === 0 ? 0 : `1px solid ${C.border}`,
+            padding: '5px 10px',
+            fontSize: 12,
+            cursor: 'pointer',
+            ...segStyle(o.on),
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export { SANS, MONO };

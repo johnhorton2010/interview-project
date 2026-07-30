@@ -22,12 +22,54 @@ function mrow(label, value, opts = {}) {
   return {
     label,
     value,
-    top: !!opts.top,
+    // Every row carries a top rule; only the ones that open a sub-total show it.
+    rule: opts.top ? '#e2e6ec' : 'transparent',
     labelColor: opts.strong ? INK : MUTED,
     color: opts.color || INK,
     weight: opts.strong ? 600 : 400,
     size: opts.big ? 14 : 12,
   };
+}
+
+/** Ledger-side field rows for a row (empty when there is no ledger side). */
+function ledgerFieldsOf(r) {
+  const l = r.ledger;
+  if (!l) return [];
+  const amtDiff = r.rowImpact !== 0;
+  return [
+    fieldRow('Internal txn ID', l.id, true, false),
+    fieldRow('Merchant ID', l.merchantId, true, false),
+    fieldRow('Merchant ref', l.merchantRef || '—', true, r.settlements.some((s) => s.merchantRef !== l.merchantRef)),
+    fieldRow(
+      'Card',
+      (l.cardType || '(missing)') + ' ····' + l.cardLast4,
+      false,
+      r.settlements.some((s) => s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4),
+    ),
+    fieldRow('Gross amount', fmt(l.gross), true, amtDiff),
+    fieldRow('Type', l.type === 'SALE' ? 'Sale' : 'Refund', false, false),
+    fieldRow('Captured', l.capturedAt, true, false),
+    fieldRow('Currency', l.currency, false, r.settlements.some((s) => s.currency !== l.currency)),
+  ];
+}
+
+/** Processor-side card(s) for a row (empty when nothing settled). */
+function settlementCardsOf(r) {
+  const l = r.ledger;
+  const amtDiff = r.rowImpact !== 0;
+  return r.settlements.map((s, i) => ({
+    badge: r.settlements.length > 1 ? `${i + 1} of ${r.settlements.length}` : s.date,
+    fields: [
+      fieldRow('Network ref', s.ref, true, false),
+      fieldRow('Merchant ref', s.merchantRef || '—', true, !!l && s.merchantRef !== l.merchantRef),
+      fieldRow('Card', s.cardType + ' ····' + s.cardLast4, false, !!l && (s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4)),
+      fieldRow('Settled amount', fmt(s.settled), true, amtDiff),
+      fieldRow('Interchange fee', fmt(s.interchange), true, r.category === 'FEE_DISCREPANCY'),
+      fieldRow('Processor fee', fmt(s.processor), true, r.category === 'FEE_DISCREPANCY'),
+      fieldRow('Settlement date', s.date, true, r.category === 'WIDE_WINDOW'),
+      fieldRow('Currency', s.currency, false, !!l && s.currency !== l.currency),
+    ],
+  }));
 }
 
 /** Linked original-sale / refund rows for a ledger row (one level). */
@@ -53,41 +95,10 @@ function relatedFor(r, model) {
  * @param {number} [depth]  guards related recursion
  */
 export function buildDetail(r, model, depth = 0) {
-  const l = r.ledger;
   const meta = getCategory(r.category);
-  const amtDiff = r.rowImpact !== 0;
 
-  const ledgerFields = l
-    ? [
-        fieldRow('Internal txn ID', l.id, true, false),
-        fieldRow('Merchant ID', l.merchantId, true, false),
-        fieldRow('Merchant ref', l.merchantRef || '—', true, r.settlements.some((s) => s.merchantRef !== l.merchantRef)),
-        fieldRow(
-          'Card',
-          (l.cardType || '(missing)') + ' ····' + l.cardLast4,
-          false,
-          r.settlements.some((s) => s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4),
-        ),
-        fieldRow('Gross amount', fmt(l.gross), true, amtDiff),
-        fieldRow('Type', l.type === 'SALE' ? 'Sale' : 'Refund', false, false),
-        fieldRow('Captured', l.capturedAt, true, false),
-        fieldRow('Currency', l.currency, false, r.settlements.some((s) => s.currency !== l.currency)),
-      ]
-    : [];
-
-  const settlementCards = r.settlements.map((s, i) => ({
-    badge: r.settlements.length > 1 ? `${i + 1} of ${r.settlements.length}` : s.date,
-    fields: [
-      fieldRow('Network ref', s.ref, true, false),
-      fieldRow('Merchant ref', s.merchantRef || '—', true, !!l && s.merchantRef !== l.merchantRef),
-      fieldRow('Card', s.cardType + ' ····' + s.cardLast4, false, !!l && (s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4)),
-      fieldRow('Settled amount', fmt(s.settled), true, amtDiff),
-      fieldRow('Interchange fee', fmt(s.interchange), true, r.category === 'FEE_DISCREPANCY'),
-      fieldRow('Processor fee', fmt(s.processor), true, r.category === 'FEE_DISCREPANCY'),
-      fieldRow('Settlement date', s.date, true, r.category === 'WIDE_WINDOW'),
-      fieldRow('Currency', s.currency, false, !!l && s.currency !== l.currency),
-    ],
-  }));
+  const ledgerFields = ledgerFieldsOf(r);
+  const settlementCards = settlementCardsOf(r);
 
   const math = [
     mrow('Ledger amount', sfmt(r.rowLedger)),
@@ -102,17 +113,21 @@ export function buildDetail(r, model, depth = 0) {
     }),
   ];
 
+  // Related original-sale / refund. Each item carries the related row's own ledger
+  // fields and settlement cards so the view can render them as blue side-panels in
+  // the left/right columns when the item is expanded (design: relLedgerPanels /
+  // relSettlementPanels).
   const rel = depth > 0 ? { items: [], note: null } : relatedFor(r, model);
   const related = rel.items.map((it) => {
     const other = model.rows.find((x) => x.id === it.txn.id);
+    const rr = other || { ledger: it.txn, settlements: [], rowImpact: 0, category: it.txn.category };
     return {
-      label: it.label,
       id: it.txn.id,
+      label: it.label,
       amount: fmt(it.txn.gross),
-      category: getCategory(it.txn.category).label,
       sevColor: SEV_COLOR[getCategory(it.txn.category).sev],
-      date: it.txn.capturedAt,
-      detail: other ? buildDetail(other, model, depth + 1) : null,
+      ledgerFields: ledgerFieldsOf(rr),
+      settlementCards: settlementCardsOf(rr),
     };
   });
 
@@ -123,7 +138,7 @@ export function buildDetail(r, model, depth = 0) {
     sevColor: SEV_COLOR[meta.sev],
     reasonBg: SEV_BG[meta.sev],
     reasonBorder: SEV_BORDER[meta.sev],
-    hasLedger: !!l,
+    hasLedger: !!r.ledger,
     ledgerFields,
     settlementCards,
     math,

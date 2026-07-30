@@ -2,16 +2,20 @@ import React, { useRef, useState } from 'react';
 import { C, MONO, INK, INK2, POS, ACCENT, NEG } from '../styles/tokens.js';
 import { Btn } from './common.jsx';
 
-function DropCard({ title, accept, noun, busy, result, entriesOpen, onToggleEntries, onFile, hint, endpointHint }) {
+function DropCard({ title, accept, noun, outcomesNoun, busy, result, entriesOpen, onToggleEntries, onFile, hint, endpointHint }) {
   const inputRef = useRef(null);
   const [drag, setDrag] = useState(false);
+  // The design shows the accepted file's name once an import lands.
+  const [filename, setFilename] = useState(null);
   const imported = !!result;
   const state = busy ? 'uploading' : imported ? 'imported' : 'drop or click';
   const border = drag ? ACCENT : imported ? '#cfe6da' : '#cfd6e0';
   const bg = drag ? '#f5f8ff' : imported ? '#fbfdfc' : '#fbfcfd';
 
   const pick = (file) => {
-    if (file) onFile(file);
+    if (!file) return;
+    setFilename(file.name);
+    onFile(file);
   };
 
   return (
@@ -45,7 +49,7 @@ function DropCard({ title, accept, noun, busy, result, entriesOpen, onToggleEntr
           <span style={{ fontSize: 13, fontWeight: 500, color: INK }}>{title}</span>
           <span style={{ fontSize: 10, fontFamily: MONO, color: '#7b8697', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{state}</span>
         </div>
-        <div style={{ fontSize: 12, color: '#7b8697', marginTop: 5, fontFamily: MONO }}>{busy ? endpointHint : imported ? '✓ imported' : hint}</div>
+        <div style={{ fontSize: 12, color: '#7b8697', marginTop: 5, fontFamily: MONO }}>{busy ? endpointHint : imported ? filename || '✓ imported' : hint}</div>
       </button>
 
       {imported && !busy && (
@@ -55,7 +59,7 @@ function DropCard({ title, accept, noun, busy, result, entriesOpen, onToggleEntr
               {result.total} {noun} accepted — {result.changed} new or updated, {result.unchanged} unchanged
             </span>
             <button type="button" onClick={onToggleEntries} style={{ border: 0, background: 'none', color: ACCENT, fontSize: 12, cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>
-              {entriesOpen ? 'Hide outcomes' : 'Per-record outcomes'}
+              {entriesOpen ? 'Hide outcomes' : `Per-${outcomesNoun} outcomes`}
             </button>
           </div>
           {entriesOpen && (
@@ -104,8 +108,8 @@ export default function ImportZone({ ledger, settle, run, reset, hasReport, impo
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: 18, alignItems: 'start' }}>
-        <DropCard title="Internal ledger — CSV" accept=".csv,text/csv" noun="transactions" busy={ledger.busy} result={ledger.result} entriesOpen={ledger.entriesOpen} onToggleEntries={ledger.onToggleEntries} onFile={ledger.onFile} hint=".csv · max 10 MB" endpointHint="PUT /api/v1/ledger-transactions…" />
-        <DropCard title="Processor settlements — JSON" accept=".json,application/json" noun="settlements" busy={settle.busy} result={settle.result} entriesOpen={settle.entriesOpen} onToggleEntries={settle.onToggleEntries} onFile={settle.onFile} hint=".json · root must be an array" endpointHint="PUT /api/v1/processor-settlement-transactions…" />
+        <DropCard title="Internal ledger — CSV" accept=".csv,text/csv" noun="transactions" outcomesNoun="transaction" busy={ledger.busy} result={ledger.result} entriesOpen={ledger.entriesOpen} onToggleEntries={ledger.onToggleEntries} onFile={ledger.onFile} hint=".csv · max 10 MB" endpointHint="PUT /api/v1/ledger-transactions…" />
+        <DropCard title="Processor settlements — JSON" accept=".json,application/json" noun="settlements" outcomesNoun="settlement" busy={settle.busy} result={settle.result} entriesOpen={settle.entriesOpen} onToggleEntries={settle.onToggleEntries} onFile={settle.onFile} hint=".json · root must be an array" endpointHint="PUT /api/v1/processor-settlement-transactions…" />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 128 }}>
           <Btn onClick={run.onRun} disabled={run.disabled} style={{ border: `1px solid ${run.disabled ? C.border : ACCENT}`, background: run.disabled ? '#f8f9fb' : ACCENT, color: run.disabled ? '#aab3bf' : '#fff', padding: '11px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, cursor: run.disabled ? 'not-allowed' : 'pointer' }} hoverStyle={run.disabled ? null : { background: '#2a55bd' }}>
