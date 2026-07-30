@@ -19,10 +19,11 @@ import BreakDetail from '../BreakDetail.jsx';
  */
 const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
   <div style={{ padding: '8px 16px', background: '#f7f8fa', borderBottom: `1px solid ${C.borderSoft}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
-    <div>{children}</div>
+    {/* Optional: a band may carry only column labels, with no caption above them. */}
+    {children && <div>{children}</div>}
     {labels && (
       // `data-col-labels` opts this line into useColumns' content measurement.
-      <div data-col-labels style={{ display: 'grid', gridTemplateColumns: template, gap, marginTop: 6, color: '#9aa3b0' }}>
+      <div data-col-labels style={{ display: 'grid', gridTemplateColumns: template, gap, marginTop: children ? 6 : 0, color: '#9aa3b0' }}>
         {/* Order comes from LSPEC, not from the label map's key order, so the two
             can never desync — the same positional coupling renderRow relies on. */}
         {LSPEC.map(({ key }) => (
@@ -229,6 +230,12 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // subtotal just restates the grand total sitting directly beneath it.
   const split = sec1.length > 0 && sec2.length > 0;
 
+  // Both views count what they put on screen, in the same unit: ledger renders one row per
+  // ReconRow, settlement one per settlement plus one per never-settled transaction. Counting
+  // settlements in one view and rows in the other made the two incomparable, and left the
+  // settlement ladder unable to add up.
+  const visibleRowCount = settleCentric ? settleRows.length + neverSettled.length : txVisible.length;
+
   const grand = totalsOf(txVisible);
   const txImpact = grand.impact;
   const txAll = txVisible.length === model.included.length;
@@ -238,12 +245,12 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const tieNote = txAll
     ? tieOk
       ? settleCentric
-        ? `All ${settleRows.length} included settlements — expected minus settled still nets to ${sfmt(f.discrepancy)}`
-        : `All ${txVisible.length} included rows — impact sums to ${sfmt(txImpact)}, matching the headline discrepancy`
+        // Settlement view states the tie-out rather than summing impact: impact is
+        // transaction-level, so adding it across settlement rows would double-count.
+        ? `All ${visibleRowCount} included rows — expected minus settled still nets to ${sfmt(f.discrepancy)}`
+        : `All ${visibleRowCount} included rows — impact sums to ${sfmt(txImpact)}, matching the headline discrepancy`
       : `Impact sums to ${sfmt(txImpact)} but the headline discrepancy is ${sfmt(f.discrepancy)} — the report has a bug`
-    : settleCentric
-      ? `Filtered view — totals cover the ${settleRows.length} visible settlements, not the full dataset`
-      : `Filtered view — totals cover the ${txVisible.length} visible rows, not the full dataset`;
+    : `Filtered view — totals cover the ${visibleRowCount} visible rows, not the full dataset`;
   const footnote = settleCentric
     ? '〃 repeats the sales, refunds, expected pay and discrepancy printed on the row above for the same ledger transaction — those figures belong to the transaction, not to each payout, so they are counted once. Quarantined records are excluded; see the Quarantine tab.'
     : 'Quarantined records are excluded — see the Quarantine tab.';
@@ -274,12 +281,13 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const impCol = (c) => (c === 0 ? INK2 : c < 0 ? NEG : POS);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-  // Settlement view counts settlements, but the never-settled band holds rows that are not
-  // settlements at all — naming only the settlements would read as though the subtotals
-  // above did not add up to it.
-  const grandCount = settleCentric
-    ? plural(settleRows.length, 'settlement') + (neverSettled.length ? ` · ${neverSettled.length} unsettled` : '')
-    : plural(txVisible.length, 'row');
+  const grandCount = plural(visibleRowCount, 'row');
+
+  // The band above the grand total names only the columns that row fills. The cells it
+  // leaves empty are blanked rather than labelled, and `ref` is renamed: it holds the row
+  // count, not a merchant ref. "Count" rather than "Rows" so the header does not repeat
+  // the noun already in the value ("18 rows").
+  const grandBandLabels = { ...L, id: '', captured: '', merchant: '', ref: 'Count', category: '' };
 
   const renderRow = (key, cols, cells, row, subline) => {
     const open = expanded === key;
@@ -512,7 +520,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                   o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} note={parts > 1 ? `part ${idx + 1} of ${parts}` : null} /> : null,
                 );
               })}
-              {split && totalRow('sub-settled', 'Subtotal', plural(settleRows.length, 'settlement'), totalsOf(sec1), false)}
+              {split && totalRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totalsOf(sec1), false)}
               {neverSettled.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} template={COLS} gap={GAP} col={col}>
                   Never settled — ledger transactions with no payout
@@ -576,6 +584,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
             </>
           )}
 
+          {/* Separates the section subtotal from the report-wide total, which otherwise
+              stack as one block, and re-states the columns at the point furthest from the
+              sticky header. Default labels, no override: this total covers every row. */}
+          {split && <SectionHeader labels={grandBandLabels} template={COLS} gap={GAP} col={col} />}
           {totalRow(
             'grand',
             'Grand total',
