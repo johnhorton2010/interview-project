@@ -15,6 +15,7 @@ const SPEC = [
   { key: 'merchant', min: 64 },
   { key: 'ref', min: 88 },
   { key: 'gross', min: 64, align: 'right' },
+  { key: 'fees', min: 48, align: 'right' },
   { key: 'settled', min: 64, align: 'right' },
   { key: 'impact', min: 64, align: 'right' },
   { key: 'captured', min: 64, align: 'right' },
@@ -23,13 +24,13 @@ const SPEC = [
   { key: 'caret', min: 8, align: 'right' },
 ];
 
-const NATURAL = { category: 'asc', merchant: 'asc', ref: 'asc', gross: 'desc', settled: 'desc', impact: 'desc', captured: 'desc', date: 'desc' };
+const NATURAL = { category: 'asc', merchant: 'asc', ref: 'asc', gross: 'desc', fees: 'desc', settled: 'desc', impact: 'desc', captured: 'desc', date: 'desc' };
 
 // Search grammar, also offered via the `?` popover. Breaks omits type and fees —
 // it has no such columns — so this must not be shared with the Transactions tab.
 const SEARCH_TITLE =
   'Terms are combined with AND. Plain text matches ids, merchant, refs and category. ' +
-  'A decimal matches gross, settled or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
+  'A decimal matches gross, fees, settled or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
   'matches either date column; prefix with captured: or settled: to pin it to one.';
 
 function SortHeader({ label, active, dir, onClick, right }) {
@@ -85,6 +86,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     date: (a, b) => String(a.date).localeCompare(String(b.date)),
     ref: (a, b) => String(refOf(a)).localeCompare(String(refOf(b))),
     gross: (a, b) => (a.ledger ? a.ledger.gross || 0 : 0) - (b.ledger ? b.ledger.gross || 0 : 0),
+    fees: (a, b) => a.rowFees - b.rowFees,
     settled: (a, b) => a.rowActual - b.rowActual,
   };
   const base = cmpBase[sortKey] || cmpBase.impact;
@@ -94,6 +96,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     (sortKey === 'date' && r.date === '—') ||
     (sortKey === 'ref' && !refOf(r)) ||
     (sortKey === 'gross' && !r.ledger) ||
+    (sortKey === 'fees' && r.settlements.length === 0) ||
     (sortKey === 'settled' && r.settlements.length === 0);
   filtered = filtered.slice().sort((a, b) => {
     const ma = missing(a);
@@ -120,6 +123,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     date: 'settlement date',
     ref: 'merchant ref',
     gross: 'ledger gross',
+    fees: 'fees charged',
     settled: 'settled amount',
   };
   const sortLabel = (SORT_LABEL[sortKey] || 'category name') + (sortDir === 'asc' ? ' ↑ ascending' : ' ↓ descending');
@@ -237,6 +241,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
             <SortHeader label="Merchant" active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
             <SortHeader label="Merchant ref" active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />
             <SortHeader label="Gross" right={isRight('gross')} active={sortKey === 'gross'} dir={sortDir} onClick={() => setSort('gross')} />
+            <SortHeader label="Fees" right={isRight('fees')} active={sortKey === 'fees'} dir={sortDir} onClick={() => setSort('fees')} />
             <SortHeader label="Settled" right={isRight('settled')} active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
             <SortHeader label="Discrepancy" right={isRight('impact')} active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
             <SortHeader label="Captured on" right={isRight('captured')} active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
@@ -276,6 +281,9 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
                     {refLine2 && <span style={{ color: '#9aa3b0', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{refLine2}</span>}
                   </span>
                   <span role="cell" style={{ ...cell('gross'), whiteSpace: 'nowrap' }}>{r.ledger ? fmt(r.ledger.gross) : '—'}</span>
+                  {/* '—' not '$0.00' when nothing settled: no fee data exists, which is
+                      distinct from fees genuinely being zero (refunds settle at $0.00). */}
+                  <span role="cell" style={{ ...cell('fees'), whiteSpace: 'nowrap', color: INK2 }}>{r.settlements.length ? fmt(r.rowFees) : '—'}</span>
                   <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap' }}>{r.settlements.length ? fmt(r.rowActual) : '—'}</span>
                   <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', fontWeight: 500, color: impactColor }}>{sfmt(r.rowImpact)}</span>
                   <span role="cell" style={{ ...cell('captured'), color: r.ledger ? INK2 : '#9aa3b0', fontSize: 12, alignSelf: 'center' }}>{r.ledger ? r.ledger.capturedAt : '—'}</span>
