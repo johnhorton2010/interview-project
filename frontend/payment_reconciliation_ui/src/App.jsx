@@ -18,6 +18,9 @@ const STALE_KEY = 'recon.stale';
 const BR_DEFAULTS = { query: '', catFilter: [], merchantFilter: null, sortKey: 'impact', sortDir: 'desc', catOpen: false, helpOpen: false };
 const TX_DEFAULTS = { query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', catOpen: false, helpOpen: false };
 const INITIAL_TAB = 'categories';
+// Off by default: every merchant is worth seeing, and each row now navigates somewhere
+// useful whether it has breaks, none, or only quarantined records.
+const MERCHANTS_BREAKS_ONLY_DEFAULT = false;
 
 function Header({ onRefresh }) {
   return (
@@ -75,6 +78,8 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [br, setBr] = useState(BR_DEFAULTS);
   const [tx, setTx] = useState(TX_DEFAULTS);
+  // Lifted out of MerchantTable so a deliberate tick survives leaving the tab.
+  const [breaksOnly, setBreaksOnly] = useState(MERCHANTS_BREAKS_ONLY_DEFAULT);
   const [reset, setReset] = useState({ open: false, phase: 'confirm', phrase: '', done: [], failedAt: null, error: null });
 
   const toastTimer = useRef(null);
@@ -236,6 +241,7 @@ export default function App() {
       setExpanded(null);
       setBr(BR_DEFAULTS);
       setTx(TX_DEFAULTS);
+      setBreaksOnly(MERCHANTS_BREAKS_ONLY_DEFAULT);
       markStale(false);
       await reload();
       flash('All ingested data deleted');
@@ -296,6 +302,8 @@ export default function App() {
           setBr={setBr}
           tx={tx}
           setTx={setTx}
+          breaksOnly={breaksOnly}
+          setBreaksOnly={setBreaksOnly}
           expanded={expanded}
           setExpanded={setExpanded}
           stale={stale}

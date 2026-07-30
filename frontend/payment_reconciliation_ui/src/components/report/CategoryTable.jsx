@@ -110,7 +110,11 @@ export default function CategoryTable({ model, nav, flash }) {
           <HeadCell right>Discrepancy</HeadCell>
         </div>
 
-        {rows.map((c) => (
+        {rows.map((c) => {
+          // A muted row overrides every cell colour with one flat, AA-compliant ink; the
+          // tint above carries the de-emphasis that opacity used to.
+          const ink = (fallback) => c.rowInk || fallback;
+          return (
           <HoverRow
             key={c.key}
             role="row"
@@ -123,7 +127,8 @@ export default function CategoryTable({ model, nav, flash }) {
               borderBottom: `1px solid ${C.rowRule}`,
               cursor: 'pointer',
               background: c.bg,
-              opacity: c.opacity,
+              // Cells without an explicit colour (the category label) inherit this.
+              color: c.rowInk || undefined,
               fontFamily: MONO,
               fontVariantNumeric: 'tabular-nums',
             }}
@@ -140,7 +145,7 @@ export default function CategoryTable({ model, nav, flash }) {
                   fontSize: 10,
                   textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: c.sevColor,
+                  color: ink(c.sevColor),
                   border: `1px solid ${c.sevBorder}`,
                   background: c.sevBg,
                   borderRadius: 3,
@@ -150,18 +155,19 @@ export default function CategoryTable({ model, nav, flash }) {
                 {c.severity}
               </span>
             </span>
-            <Num color={c.dimColor}>{c.totalCount}</Num>
-            <Num color={c.dimColor}>{c.sides}</Num>
-            <Num color={c.salesColor}>{c.sales}</Num>
-            <Num color={c.refundColor}>{c.refunds}</Num>
-            <Num color={c.feeColor}>{c.fees}</Num>
-            <Num color={INK}>{c.expected}</Num>
-            <Num color={c.settledColor}>{c.settled}</Num>
-            <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 500, color: c.impactColor }}>
+            <Num color={ink(c.dimColor)}>{c.totalCount}</Num>
+            <Num color={ink(c.dimColor)}>{c.sides}</Num>
+            <Num color={ink(c.salesColor)}>{c.sales}</Num>
+            <Num color={ink(c.refundColor)}>{c.refunds}</Num>
+            <Num color={ink(c.feeColor)}>{c.fees}</Num>
+            <Num color={ink(INK)}>{c.expected}</Num>
+            <Num color={ink(c.settledColor)}>{c.settled}</Num>
+            <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 500, color: ink(c.impactColor) }}>
               {c.impact}
             </span>
           </HoverRow>
-        ))}
+          );
+        })}
 
         <div
           role="row"

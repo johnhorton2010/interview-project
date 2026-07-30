@@ -87,9 +87,8 @@ one file. Money is handled in integer cents throughout and formatted once, at re
 
 - **Design vs. PRD divergences** (design wins for the visible surface): the quarantine
   tile counts withheld records on *both* sides (5 in the sample, vs. the PRD's ledger-only
-  3); a fully-quarantined merchant appears as an `N/A` row (hidden by the default "only
-  merchants with breaks" toggle) rather than being omitted. These are documented in the
-  domain tests.
+  3); a fully-quarantined merchant appears as a muted `N/A` row rather than being omitted.
+  These are documented in the domain tests.
 - **Reset** (`FR-9`): shipped. The three `DELETE` endpoints are live, so **Reset data** in
   the import zone clears reconciliations, then the ledger, then settlements, behind a
   typed-`RESET` confirmation. A failure halts the sequence and the dialog reports each

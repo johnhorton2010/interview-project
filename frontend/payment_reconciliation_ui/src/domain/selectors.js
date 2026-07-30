@@ -4,7 +4,7 @@
 
 import { getCategory } from './categories.js';
 import { fmt, sfmt, normAmt, amtStrings, dateMatches, isDateish } from './format.js';
-import { INK, INK2, NEG, POS, SEV_ORDER, SEV_COLOR, SEV_BG, SEV_BORDER } from '../styles/tokens.js';
+import { C, INK, INK2, NEG, POS, SEV_ORDER, SEV_COLOR, SEV_BG, SEV_BORDER } from '../styles/tokens.js';
 
 const DIM = '#9aa3b0';
 
@@ -94,8 +94,13 @@ export function categorySummary(model) {
       totalCount: isQuar ? ls.length + ss.length : rs.length,
       sides: ls.length + ' / ' + ss.length,
       dimColor: isQuar ? DIM : INK2,
-      opacity: isQuar ? '0.55' : '1',
-      bg: isQuar ? '#f7f8fa' : '#ffffff',
+      // An excluded row is muted by a background band plus one flat ink, never by opacity:
+      // opacity composites every cell toward the background and bottoms out at 1.61:1.
+      // The band carries the de-emphasis, so the ink can stay dark enough to read —
+      // INK2 on borderSoft is 6.45:1. `rowInk` overrides every cell colour below when set.
+      // (borderSoft is named for a border; here it is deliberately a row fill.)
+      rowInk: isQuar ? INK2 : null,
+      bg: isQuar ? C.borderSoft : '#ffffff',
       sales: rawSales === 0 ? '—' : fmt(rawSales),
       salesColor: ls.some(isSale) ? INK : DIM,
       refunds: rawRefunds === 0 ? '—' : '−' + fmt(rawRefunds),
@@ -160,27 +165,37 @@ export function merchantRollup(model) {
       const ss = rs.reduce((acc, r) => acc.concat(r.settlements), []);
       const sales = ls.filter(isSale).reduce((n, l) => n + (l.gross || 0), 0);
       const refunds = ls.filter(isRefund).reduce((n, l) => n + Math.abs(l.gross || 0), 0);
-      const fees = ss.reduce((n, x) => n + (x.interchange || 0) + (x.processor || 0), 0);
+      // Fees are carried as their two parts plus the total: the table prints INTERCHG and
+      // PROC ahead of FEES, so each total follows its own inputs.
+      const interchange = ss.reduce((n, x) => n + (x.interchange || 0), 0);
+      const processor = ss.reduce((n, x) => n + (x.processor || 0), 0);
+      const fees = interchange + processor;
       const expected = sales - refunds - fees;
       const settled = ss.reduce((n, x) => n + (x.settled || 0), 0);
       const disc = expected - settled;
       const brk = rs.filter((r) => r.category !== 'CLEAN_MATCH').length;
+      const clean = rs.length - brk;
       const na = 'N/A';
       return {
         merchantId: id,
-        raw: { sales, refunds, fees, expected, settled, disc, breaks: brk, quar, quarantineOnly },
+        raw: { sales, refunds, interchange, processor, fees, expected, settled, disc, clean, breaks: brk, quar, quarantineOnly },
         sales: quarantineOnly ? na : fmt(sales),
         refunds: quarantineOnly ? na : fmt(refunds),
+        interchange: quarantineOnly ? na : fmt(interchange),
+        processor: quarantineOnly ? na : fmt(processor),
         fees: quarantineOnly ? na : fmt(fees),
         expected: quarantineOnly ? na : fmt(expected),
         settled: quarantineOnly ? na : fmt(settled),
         discrepancy: quarantineOnly ? na : sfmt(disc),
-        discColor: quarantineOnly ? DIM : disc === 0 ? INK2 : disc < 0 ? NEG : POS,
+        // No row-level mute on this table: the N/A cells say "contributes nothing" more
+        // plainly than a colour treatment would, so every N/A renders in normal ink.
+        discColor: quarantineOnly ? INK : disc === 0 ? INK2 : disc < 0 ? NEG : POS,
+        // The three counts carry no colour of their own: greying a zero put it at 2.55:1,
+        // and using a lighter ink for Quarantine than for Breaks drew a distinction the
+        // data does not make. They all render in row ink, so the Total row matches too.
+        clean: quarantineOnly ? na : clean,
         breaks: quarantineOnly ? na : brk,
-        breakColor: quarantineOnly ? DIM : brk ? INK : DIM,
         quarantine: quar,
-        quarColor: quar ? INK2 : DIM,
-        opacity: quarantineOnly || (disc === 0 && brk === 0) ? '0.55' : '1',
         absDisc: quarantineOnly ? -1 : Math.abs(disc),
         hasBreaks: brk > 0,
         quarantineOnly,

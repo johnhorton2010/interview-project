@@ -91,7 +91,7 @@ function PayoutPanel({ model, nav }) {
   );
 }
 
-export default function Report({ model, tab, nav, br, setBr, tx, setTx, expanded, setExpanded, stale, onRun, dismissStale, flash }) {
+export default function Report({ model, tab, nav, br, setBr, tx, setTx, breaksOnly, setBreaksOnly, expanded, setExpanded, stale, onRun, dismissStale, flash }) {
   const f = figures(model);
   const discColor = f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS;
   const discTileBg = f.discrepancy === 0 ? '#fff' : f.discrepancy < 0 ? '#fdf5f5' : '#f3faf6';
@@ -151,7 +151,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, expanded
       </nav>
 
       {tab === 'categories' && <CategoryTable model={model} nav={nav} flash={flash} />}
-      {tab === 'merchants' && <MerchantTable model={model} nav={nav} flash={flash} />}
+      {tab === 'merchants' && <MerchantTable model={model} nav={nav} breaksOnly={breaksOnly} setBreaksOnly={setBreaksOnly} flash={flash} />}
       {tab === 'breaks' && <BreaksTab model={model} br={br} setBr={setBr} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
       {tab === 'transactions' && <TransactionsTab model={model} tx={tx} setTx={setTx} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
       {tab === 'quarantine' && <QuarantineTab model={model} flash={flash} />}
