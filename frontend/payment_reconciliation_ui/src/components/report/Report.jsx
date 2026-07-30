@@ -20,11 +20,12 @@ function Tile({ children, onClick, style }) {
   return <div style={style}>{children}</div>;
 }
 
-function TabButton({ label, active, onClick }) {
+function TabButton({ label, active, onClick, title }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
       style={{ border: 0, background: 'none', padding: '9px 14px', fontSize: 13, cursor: 'pointer', color: active ? INK : INK2, fontWeight: active ? 600 : 400, boxShadow: `inset 0 -2px 0 ${active ? ACCENT : 'transparent'}` }}
     >
       {label}
@@ -138,7 +139,14 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, expanded
         <TabButton label="Summary" active={tab === 'categories'} onClick={() => nav.goTab('categories')} />
         <TabButton label="Merchants" active={tab === 'merchants'} onClick={() => nav.goTab('merchants')} />
         <TabButton label={`Breaks · ${f.breakCount}`} active={tab === 'breaks'} onClick={() => nav.goTab('breaks')} />
-        <TabButton label={`Transactions · ${model.included.length}`} active={tab === 'transactions'} onClick={() => nav.goTab('transactions')} />
+        {/* Non-quarantined records per side, not row count — the same pair the
+            Summary table shows under Ldgr / Stl. */}
+        <TabButton
+          label={`Transactions · ${f.includedLedger}/${f.includedSettle}`}
+          title="Ledger-side records / settlement-side records"
+          active={tab === 'transactions'}
+          onClick={() => nav.goTab('transactions')}
+        />
         <TabButton label={`Quarantine · ${f.quarantineCount}`} active={tab === 'quarantine'} onClick={() => nav.goTab('quarantine')} />
       </nav>
 
