@@ -1,9 +1,9 @@
 import React, { useRef } from 'react';
-import { merchantRollup } from '../../domain/selectors.js';
+import { merchantRollup, matchMerchantAll } from '../../domain/selectors.js';
 import { fmt, sfmt, dec, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, POS } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
-import { HoverRow, GhostButton } from '../common.jsx';
+import { HoverRow, GhostButton, SegGroup, FilterStrip } from '../common.jsx';
 
 const SPEC = [
   { key: 'merchant', min: 72 },
@@ -34,13 +34,24 @@ const Num = ({ children, color }) => (
   </span>
 );
 
-// `breaksOnly` is owned by App, not held here: this component unmounts on every tab
-// switch, so local state would forget a deliberate tick each time you left.
-export default function MerchantTable({ model, nav, breaksOnly, setBreaksOnly, flash }) {
+// Search grammar for this tab. Narrower than Breaks or Transactions on purpose: a
+// rollup row has no ids, refs, dates or category — only a merchant and its money.
+const SEARCH_TITLE =
+  'Terms are combined with AND. Plain text matches the merchant id. A decimal matches any ' +
+  'money column — sales, refunds, interchange, processor, fees, expected pay, settled or discrepancy.';
+
+// `mr` is owned by App, not held here: this component unmounts on every tab switch, so
+// local state would forget a deliberate filter each time you left.
+export default function MerchantTable({ model, nav, mr, setMr, flash }) {
+  const { query, breaksOnly } = mr;
   const tableRef = useRef(null);
   const { template: COLS, gap: GAP } = useColumns(tableRef, SPEC);
   const { rows: all } = merchantRollup(model);
-  const rows = breaksOnly ? all.filter((m) => m.hasBreaks) : all;
+  const rows = all.filter((m) => (!breaksOnly || m.hasBreaks) && matchMerchantAll(m, query));
+
+  const filterBits = [];
+  if (breaksOnly) filterBits.push('show: Breaks only');
+  if (query.trim()) filterBits.push('search: "' + query.trim() + '"');
 
   // The Total reflects what is on screen, not the whole model, so a filtered table never
   // shows a total its own rows do not add up to. Quarantine-only merchants sum harmlessly:
@@ -68,20 +79,35 @@ export default function MerchantTable({ model, nav, breaksOnly, setBreaksOnly, f
   return (
     <section style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
       <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Per-merchant rollup</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7b8697' }}>
-            Unioned across both sides — a merchant with only an unmatched settlement still appears. Click a row to filter the break list, to open Transactions when a merchant has no breaks, or Quarantine when its records are all quarantined.
+            Click a row to filter the break list, to open Transactions when a merchant has no breaks, or Quarantine when its records are all quarantined.
           </p>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setMr((m) => ({ ...m, query: e.target.value }))}
+            placeholder="Search merchant or amount — e.g. MERCH-004 or 1186.63"
+            title={SEARCH_TITLE}
+            style={{ display: 'block', width: '100%', marginTop: 10, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK, boxSizing: 'border-box' }}
+          />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: INK2, cursor: 'pointer' }}>
-            <input type="checkbox" checked={breaksOnly} onChange={() => setBreaksOnly((v) => !v)} style={{ accentColor: '#2f5fd0' }} />
-            Only merchants with breaks
-          </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: '#9aa3b0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Show</span>
+            <SegGroup
+              options={[
+                { label: 'All', on: !breaksOnly, title: 'Every merchant in the report', onClick: () => setMr((m) => ({ ...m, breaksOnly: false })) },
+                { label: 'Breaks only', on: breaksOnly, title: 'Only merchants with at least one break', onClick: () => setMr((m) => ({ ...m, breaksOnly: true })) },
+              ]}
+            />
+          </div>
           <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
         </div>
       </div>
+
+      <FilterStrip bits={filterBits} onClear={() => setMr((m) => ({ ...m, query: '', breaksOnly: false }))} />
 
       <div ref={tableRef} role="table" aria-label="Per-merchant rollup" style={{ fontSize: 13 }}>
         <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
@@ -100,7 +126,7 @@ export default function MerchantTable({ model, nav, breaksOnly, setBreaksOnly, f
         </div>
 
         {rows.length === 0 && (
-          <div style={{ padding: '22px 18px', color: '#9aa3b0', fontSize: 13 }}>No merchants with breaks. Untoggle the filter to see all merchants.</div>
+          <div style={{ padding: '22px 18px', color: '#9aa3b0', fontSize: 13 }}>No merchants match these filters.</div>
         )}
 
         {rows.map((m) => (

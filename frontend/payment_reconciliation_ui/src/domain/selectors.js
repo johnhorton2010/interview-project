@@ -280,12 +280,39 @@ export function matchRow(r, term, opts) {
   return [r.merchantId, catLabel, typeWord].concat(ids, refs).join(' ').toLowerCase().indexOf(term) >= 0;
 }
 
-/** All search terms must match (AND). */
-export function matchAll(r, query, opts) {
-  const terms = String(query || '')
+/** Split a query into lowercased terms; all must match (AND). Empty query matches all. */
+const everyTerm = (query, fn) =>
+  String(query || '')
     .trim()
     .toLowerCase()
     .split(/\s+/)
-    .filter(Boolean);
-  return terms.every((t) => matchRow(r, t, opts));
+    .filter(Boolean)
+    .every(fn);
+
+/** All search terms must match (AND). */
+export function matchAll(r, query, opts) {
+  return everyTerm(query, (t) => matchRow(r, t, opts));
+}
+
+/**
+ * Search grammar for a merchant rollup row, deliberately narrower than `matchRow`: a
+ * rollup has no ids, network refs, dates, type or category to match on — just the
+ * merchant id and a block of money. So plain text matches the id, and a decimal matches
+ * any money column, mirroring the amount rule the other two tabs use.
+ * @param {object} m  a row from `merchantRollup`
+ */
+export function matchMerchant(m, term) {
+  const n = normAmt(term);
+  if (/^-?[\d.]+$/.test(n) && n.indexOf('.') >= 0) {
+    const { sales, refunds, interchange, processor, fees, expected, settled, disc } = m.raw;
+    return [sales, refunds, interchange, processor, fees, expected, settled, disc]
+      .reduce((acc, c) => acc.concat(amtStrings(c)), [])
+      .some((a) => a.indexOf(n.replace(/^-/, '')) >= 0);
+  }
+  return String(m.merchantId).toLowerCase().indexOf(term) >= 0;
+}
+
+/** All search terms must match (AND), over a merchant rollup row. */
+export function matchMerchantAll(m, query) {
+  return everyTerm(query, (t) => matchMerchant(m, t));
 }

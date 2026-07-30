@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { figures } from '../../domain/selectors.js';
+import { figures, merchantRollup } from '../../domain/selectors.js';
 import { fmt, sfmt } from '../../domain/format.js';
 import { C, MONO, INK, INK2, NEG, POS, ACCENT } from '../../styles/tokens.js';
 import { HoverRow, Btn } from '../common.jsx';
@@ -93,8 +93,11 @@ function PayoutPanel({ model, nav }) {
   );
 }
 
-export default function Report({ model, tab, nav, br, setBr, tx, setTx, breaksOnly, setBreaksOnly, expanded, setExpanded, stale, onRun, dismissStale, flash }) {
+export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, setExpanded, stale, onRun, dismissStale, flash }) {
   const f = figures(model);
+  // The whole roster, not the filtered view — tab counts report the dataset, the way
+  // Breaks shows every break and Quarantine every withheld record.
+  const merchantCount = merchantRollup(model).rows.length;
   const discColor = f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS;
   const discTileBg = f.discrepancy === 0 ? '#fff' : f.discrepancy < 0 ? '#fdf5f5' : '#f3faf6';
   const discTileBorder = f.discrepancy === 0 ? C.border : f.discrepancy < 0 ? '#f2d2d2' : '#cfe6da';
@@ -139,7 +142,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, breaksOn
 
       <nav id="report-tabs" aria-label="Report sections" style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.border}`, marginBottom: 16 }}>
         <TabButton label="Summary" active={tab === 'categories'} onClick={() => nav.goTab('categories')} />
-        <TabButton label="Merchants" active={tab === 'merchants'} onClick={() => nav.goTab('merchants')} />
+        <TabButton label={`Merchants · ${merchantCount}`} active={tab === 'merchants'} onClick={() => nav.goTab('merchants')} />
         <TabButton label={`Breaks · ${f.breakCount}`} active={tab === 'breaks'} onClick={() => nav.goTab('breaks')} />
         {/* Non-quarantined records per side, not row count — the same pair the
             Summary table shows under Ldgr / Stl. */}
@@ -153,7 +156,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, breaksOn
       </nav>
 
       {tab === 'categories' && <CategoryTable model={model} nav={nav} flash={flash} />}
-      {tab === 'merchants' && <MerchantTable model={model} nav={nav} breaksOnly={breaksOnly} setBreaksOnly={setBreaksOnly} flash={flash} />}
+      {tab === 'merchants' && <MerchantTable model={model} nav={nav} mr={mr} setMr={setMr} flash={flash} />}
       {tab === 'breaks' && <BreaksTab model={model} br={br} setBr={setBr} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
       {tab === 'transactions' && <TransactionsTab model={model} tx={tx} setTx={setTx} expanded={expanded} setExpanded={setExpanded} flash={flash} />}
       {tab === 'quarantine' && <QuarantineTab model={model} flash={flash} />}
