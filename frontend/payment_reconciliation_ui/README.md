@@ -90,9 +90,13 @@ one file. Money is handled in integer cents throughout and formatted once, at re
   3); a fully-quarantined merchant appears as an `N/A` row (hidden by the default "only
   merchants with breaks" toggle) rather than being omitted. These are documented in the
   domain tests.
-- **Reset** (`FR-9`): the dialog is wired end-to-end, but the three `DELETE` endpoints
-  are not yet implemented server-side, so the sequence will report a failure until they
-  land — by design, it is functional the moment they do.
+- **Reset** (`FR-9`): shipped. The three `DELETE` endpoints are live, so **Reset data** in
+  the import zone clears reconciliations, then the ledger, then settlements, behind a
+  typed-`RESET` confirmation. A failure halts the sequence and the dialog reports each
+  dataset as cleared, failed or not attempted (FR-9.3). On success the app returns to a
+  cold-load state — filters, sort, expanded row and tab are all reset (FR-9.4), so the
+  next import cannot inherit a silent filter. The deletes return `{ record_count }`,
+  which the dialog does not currently surface.
 - **Unknown categories** (e.g. a future `IN_PROGRESS`) are retained with a neutral badge
   and the raw label rather than crashing — forward-compatible.
 - **Staleness**: importing after a report was rendered flags the report as stale

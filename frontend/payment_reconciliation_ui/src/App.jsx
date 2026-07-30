@@ -13,6 +13,12 @@ import Report from './components/report/Report.jsx';
 
 const STALE_KEY = 'recon.stale';
 
+// Pristine view state for the two report tabs. Shared by the initial mount and by the
+// FR-9 reset, so "returns to its empty state" cannot drift from what a cold load gives.
+const BR_DEFAULTS = { query: '', catFilter: [], merchantFilter: null, sortKey: 'impact', sortDir: 'desc', catOpen: false, helpOpen: false };
+const TX_DEFAULTS = { query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', catOpen: false, helpOpen: false };
+const INITIAL_TAB = 'categories';
+
 function Header({ onRefresh }) {
   return (
     <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, padding: '0 28px', height: 56, background: '#fff', borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 40 }}>
@@ -64,11 +70,11 @@ export default function App() {
   const [importErr, setImportErr] = useState(null);
   const [importOpen, setImportOpen] = useState(null); // null → derive from hasReport
   const [stale, setStale] = useState(() => sessionStorage.getItem(STALE_KEY) === '1');
-  const [tab, setTab] = useState('categories');
+  const [tab, setTab] = useState(INITIAL_TAB);
   const [expanded, setExpanded] = useState(null);
   const [toast, setToast] = useState(null);
-  const [br, setBr] = useState({ query: '', catFilter: [], merchantFilter: null, sortKey: 'impact', sortDir: 'desc', catOpen: false, helpOpen: false });
-  const [tx, setTx] = useState({ query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', catOpen: false, helpOpen: false });
+  const [br, setBr] = useState(BR_DEFAULTS);
+  const [tx, setTx] = useState(TX_DEFAULTS);
   const [reset, setReset] = useState({ open: false, phase: 'confirm', phrase: '', done: [], failedAt: null, error: null });
 
   const toastTimer = useRef(null);
@@ -210,12 +216,26 @@ export default function App() {
     setReset((r) => ({ ...r, phase: 'running', done: [], failedAt: null, error: null }));
     const res = await runReset();
     if (res.failedAt) {
+      // A halted sequence leaves the report and the analyst's filters alone: they are
+      // what shows which datasets survived (FR-9.3).
       setReset((r) => ({ ...r, phase: 'failed', done: res.done, failedAt: res.failedAt, error: res.error }));
     } else {
       setReset((r) => ({ ...r, phase: 'done', done: res.done, failedAt: null, error: null }));
+      // FR-9.4: return to the empty state. Every piece of view state below outlives the
+      // records it refers to, so leaving any of it would silently filter or pre-expand
+      // the *next* import's report with no visible cause. `reset.phase`/`done` are
+      // deliberately kept — the modal still renders its summary until dismissed.
       setLedgerRes(null);
       setSettleRes(null);
       setReconCount(null);
+      setLedgerEntriesOpen(false);
+      setSettleEntriesOpen(false);
+      setImportErr(null);
+      setImportOpen(null); // null → re-derive from hasReport, i.e. open again while empty
+      setTab(INITIAL_TAB);
+      setExpanded(null);
+      setBr(BR_DEFAULTS);
+      setTx(TX_DEFAULTS);
       markStale(false);
       await reload();
       flash('All ingested data deleted');

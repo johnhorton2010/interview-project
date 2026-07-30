@@ -1,6 +1,6 @@
-// FR-9 reset flow. The three DELETE endpoints are planned but not yet implemented
-// server-side (PRD C4/D7), so these calls will currently fail — the reset dialog is
-// wired end-to-end and reports each dataset's real outcome the moment they land.
+// FR-9 reset flow. All three DELETE endpoints are live; each returns { record_count }.
+// The bodies are ignored here — FR-9.3 asks only which datasets were and were not
+// cleared, which the step outcome below already carries.
 
 import { apiDelete } from './client.js';
 
