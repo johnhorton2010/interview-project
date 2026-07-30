@@ -46,8 +46,10 @@ function PayoutPanel({ model, nav }) {
   const FEE_TITLE = 'Open each settlement — the settlement view itemises interchange and processor fees';
 
   const terms = [
-    { label: 'Gross ledger sales', value: fmt(f.sales), color: INK, barColor: '#9fb4d9', bar: bar(f.sales, 0), rule: 'transparent', title: `Open the ${nSales} sale rows behind this figure`, onClick: () => nav.toTransactions({ type: 'SALE', sortKey: 'gross' }) },
-    { label: 'Less gross refunds', value: '−' + fmt(f.refunds), color: NEG, barColor: '#e2b3b5', bar: bar(f.refunds, f.sales - f.refunds), title: `Open the ${nRefunds} refund rows behind this figure`, onClick: () => nav.toTransactions({ type: 'REFUND', sortKey: 'gross' }) },
+    { label: 'Gross ledger sales', value: fmt(f.sales), color: INK, barColor: '#9fb4d9', bar: bar(f.sales, 0), rule: 'transparent', title: `Open the ${nSales} sale rows behind this figure`, onClick: () => nav.toTransactions({ type: 'SALE', sortKey: 'sales' }) },
+    // Refunds sort ascending: their amounts are negative, so ascending puts the largest
+    // refund first — which is what someone opening this figure came to see.
+    { label: 'Less gross refunds', value: '−' + fmt(f.refunds), color: NEG, barColor: '#e2b3b5', bar: bar(f.refunds, f.sales - f.refunds), title: `Open the ${nRefunds} refund rows behind this figure`, onClick: () => nav.toTransactions({ type: 'REFUND', sortKey: 'refunds', sortDir: 'asc' }) },
     { label: 'Less total fees', value: '−' + fmt(f.fees), color: NEG, barColor: '#e2b3b5', bar: bar(f.fees, f.expected), toggle: true, title: `Open all ${nRows} rows sorted by fees charged`, onClick: () => nav.toTransactions({ sortKey: 'fees' }) },
   ];
   if (feesOpen) {
@@ -56,7 +58,7 @@ function PayoutPanel({ model, nav }) {
   }
   terms.push({ label: 'Expected payout', value: fmt(f.expected), color: INK, strong: true, barColor: ACCENT, bar: bar(f.expected, 0), rule: C.borderStrong, title: `Open all ${nRows} reconciled rows this figure is derived from`, onClick: () => nav.toTransactions({}) });
   terms.push({ label: 'Actual settled', value: fmt(f.actual), color: INK, barColor: '#7f8b9d', bar: bar(f.actual, 0), title: `Open the ${f.includedSettle} settlements that sum to this figure`, onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'settled' }) });
-  terms.push({ label: 'Total discrepancy', value: sfmt(f.discrepancy), color: f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS, strong: true, barColor: f.discrepancy < 0 ? NEG : POS, bar: bar(f.discrepancy, Math.min(f.expected, f.actual)), rule: C.borderStrong, title: `Open the ${f.breakCount} breaks that contribute a non-zero amount`, onClick: () => nav.toBreaks() });
+  terms.push({ label: 'Total discrepancy', value: sfmt(f.discrepancy), color: f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS, strong: true, barColor: f.discrepancy < 0 ? NEG : POS, bar: bar(f.discrepancy, Math.min(f.expected, f.actual)), rule: C.borderStrong, title: `Open all ${f.breakCount} breaks, largest discrepancy first`, onClick: () => nav.toBreaks() });
 
   return (
     <section aria-label="Payout derivation" style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px 20px 20px', marginBottom: 16 }}>

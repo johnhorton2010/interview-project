@@ -67,7 +67,9 @@ export default function CategoryTable({ model, nav, flash }) {
 
   const onRow = (c) => {
     if (c.isQuarantine) return nav.toQuarantine();
-    if (c.key === 'CLEAN_MATCH') return nav.toTransactions({ txCats: [c.key], txType: 'all', txQuery: '' });
+    // Keys must match the tx state shape (cats/type/query); `nav.toTransactions` already
+    // resets type and query, so only the category filter needs passing.
+    if (c.key === 'CLEAN_MATCH') return nav.toTransactions({ cats: [c.key] });
     return nav.toBreaks({ catFilter: [c.key], merchantFilter: null });
   };
 

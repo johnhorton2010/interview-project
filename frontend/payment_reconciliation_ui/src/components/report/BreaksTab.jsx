@@ -4,7 +4,7 @@ import { getCategory } from '../../domain/categories.js';
 import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
-import { HoverRow, SevDot, GhostButton, useDismiss, copyText } from '../common.jsx';
+import { HoverRow, SevDot, GhostButton, useDismiss, copyText, FilterStrip } from '../common.jsx';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -263,12 +263,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
         </div>
       </div>
 
-      {filterBits.length > 0 && (
-        <div style={{ background: C.surfaceAlt, borderLeft: `1px solid ${C.border}`, borderRight: `1px solid ${C.border}`, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: INK2 }}>
-          <span style={{ fontFamily: MONO, fontSize: 11, color: '#7b8697' }}>{filterBits.join('  ·  ')}</span>
-          <button type="button" onClick={() => setBr((b) => ({ ...b, catFilter: [], merchantFilter: null, query: '' }))} style={{ border: 0, background: 'none', color: ACCENT, fontSize: 12, cursor: 'pointer', padding: 0 }}>Clear filters</button>
-        </div>
-      )}
+      <FilterStrip bits={filterBits} onClear={() => setBr((b) => ({ ...b, catFilter: [], merchantFilter: null, query: '' }))} />
 
       <div ref={tableRef} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
         <div role="table" aria-label="Breaks" style={{ fontSize: 13 }}>

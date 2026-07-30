@@ -141,6 +141,25 @@ export function GhostButton({ children, ...props }) {
   );
 }
 
+/**
+ * Strip between a tab's toolbar and its table naming the filters currently applied, with
+ * a single control to drop them all. Sits in the seam, so its side borders continue the
+ * card; renders nothing when no filter is active.
+ *
+ * Each tab builds its own `bits` — the vocabulary is tab-specific and belongs beside the
+ * state it describes — and supplies an `onClear` that resets only its filters, never the
+ * sort or view mode.
+ */
+export function FilterStrip({ bits, onClear }) {
+  if (!bits.length) return null;
+  return (
+    <div style={{ background: C.surfaceAlt, borderLeft: `1px solid ${C.border}`, borderRight: `1px solid ${C.border}`, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: INK2 }}>
+      <span style={{ fontFamily: MONO, fontSize: 11, color: '#7b8697' }}>{bits.join('  ·  ')}</span>
+      <button type="button" onClick={onClear} style={{ border: 0, background: 'none', color: ACCENT, fontSize: 12, cursor: 'pointer', padding: 0 }}>Clear filters</button>
+    </div>
+  );
+}
+
 /** Segmented on/off pill (view + type toggles). */
 export function segStyle(on) {
   return { background: on ? '#eaf0fd' : '#ffffff', color: on ? ACCENT : INK2 };

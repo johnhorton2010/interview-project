@@ -4,7 +4,7 @@ import { getCategory } from '../../domain/categories.js';
 import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
-import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText } from '../common.jsx';
+import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -283,6 +283,13 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
   const grandCount = plural(visibleRowCount, 'row');
 
+  // Ordered to parallel the Breaks strip: category, the tab-specific filter, then search.
+  // `view` and sort are view modes, not filters, so neither is listed nor cleared.
+  const filterBits = [];
+  if (tx.cats.length) filterBits.push('category: ' + tx.cats.map((k) => getCategory(k).label).join(', '));
+  if (tx.type !== 'all') filterBits.push('type: ' + (tx.type === 'SALE' ? 'Sales' : 'Refunds'));
+  if (tx.query.trim()) filterBits.push('search: "' + tx.query.trim() + '"');
+
   // The band above the grand total names only the columns that row fills. The cells it
   // leaves empty are blanked rather than labelled, and `ref` is renamed: it holds the row
   // count, not a merchant ref. "Count" rather than "Rows" so the header does not repeat
@@ -457,6 +464,8 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
         </div>
       </div>
+
+      <FilterStrip bits={filterBits} onClear={() => setTx((t) => ({ ...t, cats: [], type: 'all', query: '' }))} />
 
       {/* No overflow container here: it would trap the sticky column header inside
           its own scroll box. */}
