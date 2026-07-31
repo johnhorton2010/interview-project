@@ -39,8 +39,10 @@ const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
 );
 
 // Subline under a transaction row, matching the design (mono, 11px, muted). When
-// `disabled` it states an absence ("no settlement") — there is nothing to copy, so
-// it renders as plain text rather than offering a copy affordance that cannot work.
+// `disabled` it states an absence ("no settlement") — there is nothing to copy, so it
+// renders as plain text rather than offering a copy affordance that cannot work. It is
+// not dimmed for it: the phrase is a fact about the row, and reads at the subline's own
+// weight like every id beside it.
 //
 // Deliberately one item. useColumns measures only [role="row"] cells, so nothing
 // down here can widen the column it sits under — a second item just overflows into
@@ -48,7 +50,7 @@ const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
 const Subline = ({ text, label, display, onToggle, flash, disabled }) => (
   <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
     {disabled ? (
-      <span style={{ color: C.disabled }}>{display}</span>
+      <span>{display}</span>
     ) : (
       <button type="button" title={`Copy ${label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copyText(text, label, flash); }} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'copy' }}>
         {display}
@@ -388,9 +390,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         r.ledger
           ? idCell(r.ledger.id, r.ledger.id, 'Identifier')
           : idCell(shortRefOf(r.settlements[0].ref), r.settlements[0].ref, 'Network ref'),
-        // 'no ledger' is a textual absence, like the 'unsettled' marker the never-settled
-        // rows use in this same column, so it takes the absent ink rather than label ink.
-        cell(captured, { color: r.ledger ? INK2 : C.dim, size: 12 }),
+        // 'no ledger' reads at full label weight, like the date it replaces. A dash is a
+        // placeholder and recedes; a phrase is a statement of fact — here, the most
+        // interesting thing on the row — so it is content and reads like content.
+        cell(captured, { color: INK2, size: 12 }),
         cell(r.merchantId, { color: INK2, size: 12 }),
         cell(ref, { color: labelColor(ref), size: 12 }),
         cell(fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
@@ -582,7 +585,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                     // No network ref exists for this row, so the id column carries the
                     // ledger txn id — its only identifier — rather than a bare dash.
                     idCell(r.ledger.id, r.ledger.id, 'Identifier'),
-                    cell('unsettled', { color: C.dim, sans: true, size: 12 }),
+                    cell('unsettled', { color: INK2, sans: true, size: 12 }),
                     cell(r.merchantId, { color: INK2, size: 12 }),
                     cell(r.ledger.merchantRef || '—', { color: labelColor(r.ledger.merchantRef), size: 12 }),
                     cell(fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),

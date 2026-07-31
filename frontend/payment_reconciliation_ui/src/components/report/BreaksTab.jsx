@@ -312,7 +312,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
                       disabled={!ledgerId}
                       title="Copy internal txn id"
                       onClick={(e) => { e.stopPropagation(); copyText(ledgerId, 'Internal txn id', flash); }}
-                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: ledgerId ? 'inherit' : C.disabled, cursor: ledgerId ? 'copy' : 'default' }}
+                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: ledgerId ? 'copy' : 'default' }}
                     >
                       {ledgerId || 'no ledger id'}
                     </button>
@@ -322,7 +322,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
                       disabled={!netRef}
                       title="Copy network ref"
                       onClick={(e) => { e.stopPropagation(); copyText(netRef, 'Network ref', flash); }}
-                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: netRef ? 'inherit' : C.disabled, cursor: netRef ? 'copy' : 'default' }}
+                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: netRef ? 'copy' : 'default' }}
                     >
                       {netRef ? shortRefOf(netRef) : 'no settlement'}
                     </button>
