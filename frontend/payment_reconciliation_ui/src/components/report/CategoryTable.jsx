@@ -6,6 +6,7 @@ import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton } from '../common.jsx';
 import { HeadCell, Num, TableFooter, GlyphKey } from './TableParts.jsx';
+import { SUMMARY_HELP as HELP } from './columnHelp.js';
 
 const SPEC = [
   { key: 'category', min: 120 },
@@ -134,16 +135,16 @@ export default function CategoryTable({ model, nav, flash }) {
 
       <div ref={tableRef} role="table" aria-label="Reconciliation summary" style={{ fontSize: 13 }}>
         <div role="row" style={headerRow(COLS, GAP)}>
-          <HeadCell style={cell('category')}>Category</HeadCell>
-          <HeadCell style={cell('severity')}>Severity</HeadCell>
-          <HeadCell style={cell('totalCount')}>Total n</HeadCell>
-          <HeadCell style={cell('sides')} title="Ledger-side records / settlement-side records">Ldgr / Stl</HeadCell>
-          <HeadCell style={cell('sales')}>Sales</HeadCell>
-          <HeadCell style={cell('refunds')}>Refunds</HeadCell>
-          <HeadCell style={cell('fees')}>Fees</HeadCell>
-          <HeadCell style={cell('expected')} title="Expected payout — sales − refunds − fees">Exp pay</HeadCell>
-          <HeadCell style={cell('settled')}>Settled</HeadCell>
-          <HeadCell style={cell('impact')}>Discrepancy</HeadCell>
+          <HeadCell style={cell('category')} help={HELP.category}>Category</HeadCell>
+          <HeadCell style={cell('severity')} help={HELP.severity}>Severity</HeadCell>
+          <HeadCell style={cell('totalCount')} help={HELP.totalCount}>Total n</HeadCell>
+          <HeadCell style={cell('sides')} help={HELP.sides}>Ldgr / Stl</HeadCell>
+          <HeadCell style={cell('sales')} help={HELP.sales}>Sales</HeadCell>
+          <HeadCell style={cell('refunds')} help={HELP.refunds}>Refunds</HeadCell>
+          <HeadCell style={cell('fees')} help={HELP.fees}>Fees</HeadCell>
+          <HeadCell style={cell('expected')} help={HELP.expected}>Exp pay</HeadCell>
+          <HeadCell style={cell('settled')} help={HELP.settled}>Settled</HeadCell>
+          <HeadCell style={cell('impact')} help={HELP.impact}>Discrepancy</HeadCell>
         </div>
 
         {included.map(renderRow)}

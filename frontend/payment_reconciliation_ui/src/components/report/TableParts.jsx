@@ -4,22 +4,139 @@
 // names; `SortHeader` and `SortH` differed only in how they took alignment.
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { emptyState, footerBar } from '../../styles/table.js';
-import { C, MONO, INK2 } from '../../styles/tokens.js';
+import { C, MONO, SANS, INK2 } from '../../styles/tokens.js';
+
+const TIP_WIDTH = 260;
+const VIEWPORT_PAD = 8;
+
+/**
+ * Hover/focus state and geometry for a column tooltip.
+ *
+ * The panel is portalled to <body> rather than nested in the header, for three reasons
+ * that each rule out nesting on their own: `measureContent` sizes a column from its
+ * header cell's `textContent` (styles/columns.js), so an open tooltip would blow the
+ * column out to its own width; its text would join the header button's accessible name;
+ * and Summary, Merchants and Quarantine wrap their tables in `overflowX: 'auto'`, which
+ * would clip it at the card edge. A header is also a grid item, so the panel cannot be a
+ * sibling either — that would claim a column.
+ */
+function useColumnTip(help) {
+  const ref = React.useRef(null);
+  const id = React.useId();
+  const [box, setBox] = React.useState(null);
+
+  const show = React.useCallback(() => {
+    const el = ref.current;
+    if (!el || !help) return;
+    const r = el.getBoundingClientRect();
+    // Clamp so the rightmost columns — Discrepancy on Summary, Quarantine on Merchants —
+    // cannot push the panel off-screen.
+    const left = Math.max(VIEWPORT_PAD, Math.min(r.left, window.innerWidth - TIP_WIDTH - VIEWPORT_PAD));
+    // Open downward into the table so it never collides with the sticky app header,
+    // flipping up only when there is no room below.
+    const below = window.innerHeight - r.bottom;
+    setBox(below < 130 ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+  }, [help]);
+
+  const hide = React.useCallback(() => setBox(null), []);
+
+  React.useEffect(() => {
+    if (!box) return undefined;
+    const onKey = (e) => e.key === 'Escape' && hide();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [box, hide]);
+
+  const anchor = help
+    ? {
+        ref,
+        'aria-describedby': box ? id : undefined,
+        onMouseEnter: show,
+        onMouseLeave: hide,
+        onFocus: show,
+        onBlur: hide,
+      }
+    : { ref };
+
+  const tip = box ? createPortal(<ColumnTip id={id} help={help} box={box} />, document.body) : null;
+  return { anchor, tip };
+}
+
+/** The panel itself, styled like the SearchHelp popover. */
+function ColumnTip({ id, help, box }) {
+  const [first, ...rest] = help.split('\n');
+  return (
+    <div
+      id={id}
+      role="tooltip"
+      style={{
+        position: 'fixed',
+        ...box,
+        width: TIP_WIDTH,
+        // Above the sticky table header (5), the category dropdowns (30) and the app
+        // header (40); below the toast (90).
+        zIndex: 50,
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 7,
+        boxShadow: '0 12px 28px rgba(19,26,36,0.13)',
+        padding: '9px 11px',
+        fontFamily: SANS,
+        fontSize: 11,
+        lineHeight: 1.45,
+        textAlign: 'left',
+        animation: 'riseIn 120ms ease-out',
+        pointerEvents: 'none',
+      }}
+    >
+      <div style={{ color: INK2 }}>{first}</div>
+      {rest.map((line, i) => (
+        <div key={i} style={{ marginTop: 3, color: C.dim }}>
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Static column header. `right` is a convenience for tables whose spec has no
  * right→left boundary; the others pass `style={cell(key)}` and get the left-pad
  * correction from useColumns along with the alignment.
+ *
+ * `tabIndex` when it carries help: a tooltip reachable only by pointer is the failure
+ * that ruled out the native `title` attribute, so these enter the tab order to earn it.
  */
-export function HeadCell({ children, right, title, style }) {
+export function HeadCell({ children, right, help, style }) {
+  const { anchor, tip } = useColumnTip(help);
   return (
     <span
       role="columnheader"
-      title={title}
+      tabIndex={help ? 0 : undefined}
+      {...anchor}
       style={{ textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap', ...style }}
     >
       {children}
+      {tip}
+    </span>
+  );
+}
+
+/**
+ * One label in a mid-table section band — a restatement of a column header, not a header
+ * itself, so it carries no `columnheader` role and stays out of the tab order. The real
+ * header above it is focusable and carries the same definition, so a keyboard user
+ * already has every one of these; making the restatements focusable too would add a
+ * couple of dozen tab stops to one table for nothing new.
+ */
+export function BandLabel({ children, help, style }) {
+  const { anchor, tip } = useColumnTip(help);
+  return (
+    <span {...anchor} style={style}>
+      {children}
+      {tip}
     </span>
   );
 }
@@ -38,14 +155,15 @@ export function Num({ children, color, style }) {
  * restating them, so a button is indistinguishable from a static header until you
  * sort by it. `style` carries alignment — `cell(key)` from useColumns.
  */
-export function SortHeader({ label, active, dir, onClick, style, title }) {
+export function SortHeader({ label, active, dir, onClick, style, help }) {
+  const { anchor, tip } = useColumnTip(help);
   return (
     <button
       type="button"
       role="columnheader"
       aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
       onClick={onClick}
-      title={title}
+      {...anchor}
       style={{
         border: 0,
         background: 'none',
@@ -63,6 +181,7 @@ export function SortHeader({ label, active, dir, onClick, style, title }) {
     >
       {label}
       {active ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
+      {tip}
     </button>
   );
 }

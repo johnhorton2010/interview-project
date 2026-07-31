@@ -5,7 +5,8 @@ import { C, SANS, INK, INK2 } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, rowRule, figureColor } from '../../styles/table.js';
 import { GhostButton, HoverRow } from '../common.jsx';
-import { EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
+import { HeadCell, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
+import { QUARANTINE_HELP as HELP } from './columnHelp.js';
 import QuarantineDetail from '../QuarantineDetail.jsx';
 
 // `reason` follows a right-aligned column, so useColumns pads it automatically to
@@ -59,11 +60,11 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
 
       <div ref={tableRef} role="table" aria-label="Quarantined records" style={{ fontSize: 13 }}>
         <div role="row" style={headerRow(COLS, GAP)}>
-          <span role="columnheader">Side</span>
-          <span role="columnheader">Identifier</span>
-          <span role="columnheader">Merchant</span>
-          <span role="columnheader" style={cell('amount')}>Amount</span>
-          <span role="columnheader" style={cell('reason')}>Why it was withheld</span>
+          <HeadCell style={cell('side')} help={HELP.side}>Side</HeadCell>
+          <HeadCell style={cell('id')} help={HELP.id}>Identifier</HeadCell>
+          <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
+          <HeadCell style={cell('amount')} help={HELP.amount}>Amount</HeadCell>
+          <HeadCell style={cell('reason')} help={HELP.reason}>Why it was withheld</HeadCell>
           <span role="columnheader" />
         </div>
         {rows.length === 0 && <EmptyState>Nothing quarantined — every record passed validation.</EmptyState>}

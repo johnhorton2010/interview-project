@@ -7,6 +7,7 @@ import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, copyText, FilterStrip } from '../common.jsx';
 import { SortHeader, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
+import { BREAKS_HELP as HELP } from './columnHelp.js';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -242,17 +243,17 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
       <div ref={tableRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
         <div role="table" aria-label="Breaks" style={{ fontSize: 13 }}>
           <div role="row" style={headerRow(COLS, GAP, true)}>
-            <SortHeader label="Category" style={cell('category')} active={sortKey === 'category'} dir={sortDir} onClick={() => setSort('category')} />
-            <SortHeader label="Merchant" style={cell('merchant')} active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
-            <SortHeader label="Merchant ref" style={cell('ref')} active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />
-            <SortHeader label="Sales" style={cell('sales')} active={sortKey === 'sales'} dir={sortDir} onClick={() => setSort('sales')} />
-            <SortHeader label="Refunds" style={cell('refunds')} active={sortKey === 'refunds'} dir={sortDir} onClick={() => setSort('refunds')} />
-            <SortHeader label="Fees" style={cell('fees')} active={sortKey === 'fees'} dir={sortDir} onClick={() => setSort('fees')} />
-            <SortHeader label="Exp pay" title="Expected payout — sales − refunds − fees" style={cell('expected')} active={sortKey === 'expected'} dir={sortDir} onClick={() => setSort('expected')} />
-            <SortHeader label="Settled" style={cell('settled')} active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
-            <SortHeader label="Discrepancy" style={cell('impact')} active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
-            <SortHeader label="Captured on" style={cell('captured')} active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
-            <SortHeader label="Settled on" style={cell('date')} active={sortKey === 'date'} dir={sortDir} onClick={() => setSort('date')} />
+            <SortHeader label="Category" help={HELP.category} style={cell('category')} active={sortKey === 'category'} dir={sortDir} onClick={() => setSort('category')} />
+            <SortHeader label="Merchant" help={HELP.merchant} style={cell('merchant')} active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
+            <SortHeader label="Merchant ref" help={HELP.ref} style={cell('ref')} active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />
+            <SortHeader label="Sales" help={HELP.sales} style={cell('sales')} active={sortKey === 'sales'} dir={sortDir} onClick={() => setSort('sales')} />
+            <SortHeader label="Refunds" help={HELP.refunds} style={cell('refunds')} active={sortKey === 'refunds'} dir={sortDir} onClick={() => setSort('refunds')} />
+            <SortHeader label="Fees" help={HELP.fees} style={cell('fees')} active={sortKey === 'fees'} dir={sortDir} onClick={() => setSort('fees')} />
+            <SortHeader label="Exp pay" help={HELP.expected} style={cell('expected')} active={sortKey === 'expected'} dir={sortDir} onClick={() => setSort('expected')} />
+            <SortHeader label="Settled" help={HELP.settled} style={cell('settled')} active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
+            <SortHeader label="Discrepancy" help={HELP.impact} style={cell('impact')} active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
+            <SortHeader label="Captured on" help={HELP.captured} style={cell('captured')} active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
+            <SortHeader label="Settled on" help={HELP.date} style={cell('date')} active={sortKey === 'date'} dir={sortDir} onClick={() => setSort('date')} />
             <span role="columnheader" />
           </div>
 

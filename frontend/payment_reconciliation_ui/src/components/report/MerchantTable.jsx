@@ -6,6 +6,7 @@ import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, GhostButton, SegGroup, FilterStrip } from '../common.jsx';
 import { HeadCell, Num, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
+import { MERCHANT_HELP as HELP } from './columnHelp.js';
 
 const SPEC = [
   { key: 'merchant', min: 72 },
@@ -100,18 +101,18 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
 
       <div ref={tableRef} role="table" aria-label="Per-merchant rollup" style={{ fontSize: 13 }}>
         <div role="row" style={headerRow(COLS, GAP)}>
-          <HeadCell style={cell('merchant')}>Merchant</HeadCell>
-          <HeadCell style={cell('sales')}>Sales</HeadCell>
-          <HeadCell style={cell('refunds')}>Refunds</HeadCell>
-          <HeadCell style={cell('interchange')} title="Interchange fees">Interchg</HeadCell>
-          <HeadCell style={cell('processor')} title="Processor fees">Proc</HeadCell>
-          <HeadCell style={cell('fees')} title="Total fees — interchange + processor">Fees</HeadCell>
-          <HeadCell style={cell('expected')} title="Expected payout — sales − refunds − fees">Exp pay</HeadCell>
-          <HeadCell style={cell('settled')}>Settled</HeadCell>
-          <HeadCell style={cell('discrepancy')}>Discrepancy</HeadCell>
-          <HeadCell style={cell('clean')} title="Cleanly matched records">Clean</HeadCell>
-          <HeadCell style={cell('breaks')}>Breaks</HeadCell>
-          <HeadCell style={cell('quarantine')}>Quarantine</HeadCell>
+          <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
+          <HeadCell style={cell('sales')} help={HELP.sales}>Sales</HeadCell>
+          <HeadCell style={cell('refunds')} help={HELP.refunds}>Refunds</HeadCell>
+          <HeadCell style={cell('interchange')} help={HELP.interchange}>Interchg</HeadCell>
+          <HeadCell style={cell('processor')} help={HELP.processor}>Proc</HeadCell>
+          <HeadCell style={cell('fees')} help={HELP.fees}>Fees</HeadCell>
+          <HeadCell style={cell('expected')} help={HELP.expected}>Exp pay</HeadCell>
+          <HeadCell style={cell('settled')} help={HELP.settled}>Settled</HeadCell>
+          <HeadCell style={cell('discrepancy')} help={HELP.discrepancy}>Discrepancy</HeadCell>
+          <HeadCell style={cell('clean')} help={HELP.clean}>Clean</HeadCell>
+          <HeadCell style={cell('breaks')} help={HELP.breaks}>Breaks</HeadCell>
+          <HeadCell style={cell('quarantine')} help={HELP.quarantine}>Quarantine</HeadCell>
         </div>
 
         {rows.length === 0 && <EmptyState>No merchants match these filters.</EmptyState>}

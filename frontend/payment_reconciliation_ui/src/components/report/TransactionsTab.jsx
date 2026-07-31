@@ -6,7 +6,8 @@ import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_ORDER, SEV_COLOR } from '../
 import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
-import { SortHeader, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
+import { SortHeader, BandLabel, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
+import { transactionsHelp, BAND_HELP } from './columnHelp.js';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -19,7 +20,7 @@ import BreakDetail from '../BreakDetail.jsx';
  * table-global, so a second set of controls would be ambiguous, and a mid-table
  * header row would confuse the surrounding `role="table"` semantics.
  */
-const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
+const SectionHeader = ({ children, labels, overrides, help, template, gap, col }) => (
   <div style={{ padding: `8px ${TABLE_INSET}px`, background: C.bandBg, borderBottom: `1px solid ${C.borderSoft}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>
     {/* Optional: a band may carry only column labels, with no caption above them. */}
     {children && <div>{children}</div>}
@@ -27,11 +28,13 @@ const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
       // `data-col-labels` opts this line into useColumns' content measurement.
       <div data-col-labels style={{ display: 'grid', gridTemplateColumns: template, gap, marginTop: children ? 6 : 0, color: C.dim }}>
         {/* Order comes from LSPEC, not from the label map's key order, so the two
-            can never desync — the same positional coupling renderRow relies on. */}
+            can never desync — the same positional coupling renderRow relies on.
+            `help` comes from the band's own map, never the header's: a band exists
+            because one of its columns means something else inside it. */}
         {LSPEC.map(({ key }) => (
-          <span key={key} style={{ ...col(key), whiteSpace: 'nowrap', overflow: 'hidden' }}>
+          <BandLabel key={key} help={help && help[key]} style={{ ...col(key), whiteSpace: 'nowrap', overflow: 'hidden' }}>
             {(overrides && overrides[key]) || labels[key]}
-          </span>
+          </BandLabel>
         ))}
       </div>
     )}
@@ -135,16 +138,12 @@ const SEARCH_TITLE =
 const str = (a, b) => String(a || '').localeCompare(String(b || ''));
 const num = (a, b) => (a === null ? 0 : a) - (b === null ? 0 : b);
 
-// Tooltips for the headers whose labels are abbreviated, matching the ones Summary
-// and Merchants give the same columns.
-const HEAD_TITLE = { expected: 'Expected payout — sales − refunds − fees' };
-
-function SortH({ label, k, tx, setTx, colStyle }) {
+function SortH({ label, k, tx, setTx, colStyle, help }) {
   const onClick = () => setTx((t) => (t.sortKey === k ? { ...t, sortKey: k, sortDir: t.sortDir === 'asc' ? 'desc' : 'asc' } : { ...t, sortKey: k, sortDir: NATURAL[k] }));
   return (
     <SortHeader
       label={label}
-      title={HEAD_TITLE[k]}
+      help={help[k]}
       active={tx.sortKey === k}
       dir={tx.sortDir}
       onClick={onClick}
@@ -160,6 +159,8 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const f = figures(model);
   const settleCentric = tx.view === 'settlement';
   const L = LABELS[settleCentric ? 'settlement' : 'ledger'];
+  // Six of these swap with the view — see columnHelp.js.
+  const HELP = transactionsHelp(settleCentric);
 
   const txVisible = model.included.filter((r) => {
     if (tx.cats.length && !tx.cats.includes(r.category)) return false;
@@ -521,17 +522,17 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           {settleCentric ? (
             <>
               <div role="row" style={headerRow(COLS, GAP, true)}>
-                <SortH label={L.id} k="id" tx={tx} setTx={setTx} colStyle={col('id')} />
-                <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
-                <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
-                <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} colStyle={col('ref')} />
-                <SortH label={L.sales} k="sales" tx={tx} setTx={setTx} colStyle={col('sales')} />
-                <SortH label={L.refunds} k="refunds" tx={tx} setTx={setTx} colStyle={col('refunds')} />
-                <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} colStyle={col('fees')} />
-                <SortH label={L.expected} k="expected" tx={tx} setTx={setTx} colStyle={col('expected')} />
-                <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} colStyle={col('settled')} />
-                <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} colStyle={col('disc')} />
-                <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
+                <SortH label={L.id} k="id" tx={tx} setTx={setTx} help={HELP} colStyle={col('id')} />
+                <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} help={HELP} colStyle={col('captured')} />
+                <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} help={HELP} colStyle={col('merchant')} />
+                <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} help={HELP} colStyle={col('ref')} />
+                <SortH label={L.sales} k="sales" tx={tx} setTx={setTx} help={HELP} colStyle={col('sales')} />
+                <SortH label={L.refunds} k="refunds" tx={tx} setTx={setTx} help={HELP} colStyle={col('refunds')} />
+                <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} help={HELP} colStyle={col('fees')} />
+                <SortH label={L.expected} k="expected" tx={tx} setTx={setTx} help={HELP} colStyle={col('expected')} />
+                <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} help={HELP} colStyle={col('settled')} />
+                <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} help={HELP} colStyle={col('disc')} />
+                <SortH label={L.category} k="category" tx={tx} setTx={setTx} help={HELP} colStyle={col('category')} />
                 <span role="columnheader" />
               </div>
               {settleRows.length === 0 && neverSettled.length === 0 && <EmptyState>No settlements match.</EmptyState>}
@@ -573,7 +574,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
               })}
               {split && summaryRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totalsOf(sec1), false)}
               {neverSettled.length > 0 && (
-                <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} template={COLS} gap={GAP} col={col}>
+                <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} help={BAND_HELP.neverSettled} template={COLS} gap={GAP} col={col}>
                   Never settled — ledger transactions with no payout
                 </SectionHeader>
               )}
@@ -610,24 +611,24 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           ) : (
             <>
               <div role="row" style={headerRow(COLS, GAP, true)}>
-                <SortH label={L.id} k="id" tx={tx} setTx={setTx} colStyle={col('id')} />
-                <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
-                <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
-                <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} colStyle={col('ref')} />
-                <SortH label={L.sales} k="sales" tx={tx} setTx={setTx} colStyle={col('sales')} />
-                <SortH label={L.refunds} k="refunds" tx={tx} setTx={setTx} colStyle={col('refunds')} />
-                <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} colStyle={col('fees')} />
-                <SortH label={L.expected} k="expected" tx={tx} setTx={setTx} colStyle={col('expected')} />
-                <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} colStyle={col('settled')} />
-                <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} colStyle={col('disc')} />
-                <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
+                <SortH label={L.id} k="id" tx={tx} setTx={setTx} help={HELP} colStyle={col('id')} />
+                <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} help={HELP} colStyle={col('captured')} />
+                <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} help={HELP} colStyle={col('merchant')} />
+                <SortH label={L.ref} k="ref" tx={tx} setTx={setTx} help={HELP} colStyle={col('ref')} />
+                <SortH label={L.sales} k="sales" tx={tx} setTx={setTx} help={HELP} colStyle={col('sales')} />
+                <SortH label={L.refunds} k="refunds" tx={tx} setTx={setTx} help={HELP} colStyle={col('refunds')} />
+                <SortH label={L.fees} k="fees" tx={tx} setTx={setTx} help={HELP} colStyle={col('fees')} />
+                <SortH label={L.expected} k="expected" tx={tx} setTx={setTx} help={HELP} colStyle={col('expected')} />
+                <SortH label={L.settled} k="settled" tx={tx} setTx={setTx} help={HELP} colStyle={col('settled')} />
+                <SortH label={L.disc} k="disc" tx={tx} setTx={setTx} help={HELP} colStyle={col('disc')} />
+                <SortH label={L.category} k="category" tx={tx} setTx={setTx} help={HELP} colStyle={col('category')} />
                 <span role="columnheader" />
               </div>
               {ledgerRows.length === 0 && orphanRows.length === 0 && <EmptyState>No transactions match.</EmptyState>}
               {ledgerRows.map(renderLedgerRow)}
               {split && summaryRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totalsOf(sec1), false)}
               {orphanRows.length > 0 && (
-                <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} template={COLS} gap={GAP} col={col}>
+                <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} help={BAND_HELP.unattributed} template={COLS} gap={GAP} col={col}>
                   Unattributed settlements — no ledger side
                 </SectionHeader>
               )}
@@ -639,7 +640,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           {/* Separates the section subtotal from the report-wide total, which otherwise
               stack as one block, and re-states the columns at the point furthest from the
               sticky header. Default labels, no override: this total covers every row. */}
-          {split && <SectionHeader labels={grandBandLabels} template={COLS} gap={GAP} col={col} />}
+          {split && <SectionHeader labels={grandBandLabels} help={BAND_HELP.grand(settleCentric)} template={COLS} gap={GAP} col={col} />}
           {summaryRow(
             'grand',
             'Grand total',
