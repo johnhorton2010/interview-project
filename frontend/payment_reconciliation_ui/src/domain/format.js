@@ -42,6 +42,20 @@ export function dec(c) {
   return c === null || c === undefined ? '' : (c / 100).toFixed(2);
 }
 
+/**
+ * Plain decimal for a deduction — always negative, as the screen prints it. The CSV
+ * counterpart to `neg()`, and `Math.abs` collapses the same two storage conventions:
+ * the Summary and Merchant rollups hold these as positive magnitudes, Breaks and
+ * Transactions hold refund gross already negative.
+ *
+ * Every Refunds, Interchange, Processor and Fees cell in every export goes through this.
+ * They used to be negated inline, which is how two files ended up disagreeing on the
+ * sign of the same column.
+ */
+export function decNeg(c) {
+  return c === null || c === undefined ? '' : dec(-Math.abs(c));
+}
+
 export function shortRefOf(ref) {
   return 'ARN…' + String(ref).slice(-5);
 }

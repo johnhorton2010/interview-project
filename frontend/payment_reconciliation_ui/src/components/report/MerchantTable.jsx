@@ -1,12 +1,13 @@
 import React, { useRef } from 'react';
 import { merchantRollup, matchMerchantAll } from '../../domain/selectors.js';
-import { fmt, sfmt, neg, dec, downloadCsv } from '../../domain/format.js';
+import { fmt, sfmt, neg, dec, decNeg, downloadCsv } from '../../domain/format.js';
 import { C, INK } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, GhostButton, SegGroup, FilterStrip } from '../common.jsx';
 import { HeadCell, Num, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 import { MERCHANT_HELP as HELP } from './columnHelp.js';
+import { COL, EXPORT_COLUMNS, project } from './exportColumns.js';
 
 const SPEC = [
   { key: 'merchant', min: 72 },
@@ -56,12 +57,25 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
   const exportCsv = () => {
     const n = downloadCsv(
       'merchant-rollup.csv',
-      ['Merchant', 'Sales', 'Refunds', 'Interchange', 'Processor', 'Fees', 'Exp pay', 'Settled', 'Discrepancy', 'Clean', 'Breaks', 'Quarantine'],
-      rows.map((m) =>
-        m.raw.quarantineOnly
-          ? [m.merchantId, 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', m.raw.quar]
-          : [m.merchantId, dec(m.raw.sales), dec(-m.raw.refunds), dec(-m.raw.interchange), dec(-m.raw.processor), dec(-m.raw.fees), dec(m.raw.expected), dec(m.raw.settled), dec(m.raw.disc), m.raw.clean, m.raw.breaks, m.raw.quar],
-      ),
+      EXPORT_COLUMNS.merchants,
+      rows.map((m) => {
+        // A fully-quarantined merchant contributes to nothing but its own count.
+        const na = (v) => (m.raw.quarantineOnly ? 'N/A' : v);
+        return project(EXPORT_COLUMNS.merchants, {
+          [COL.merchant]: m.merchantId,
+          [COL.sales]: na(dec(m.raw.sales)),
+          [COL.refunds]: na(decNeg(m.raw.refunds)),
+          [COL.interchange]: na(decNeg(m.raw.interchange)),
+          [COL.processor]: na(decNeg(m.raw.processor)),
+          [COL.fees]: na(decNeg(m.raw.fees)),
+          [COL.expected]: na(dec(m.raw.expected)),
+          [COL.settled]: na(dec(m.raw.settled)),
+          [COL.discrepancy]: na(dec(m.raw.disc)),
+          [COL.clean]: na(m.raw.clean),
+          [COL.breaks]: na(m.raw.breaks),
+          [COL.quarantine]: m.raw.quar,
+        });
+      }),
     );
     flash(`merchant-rollup.csv — ${n} rows exported`);
   };

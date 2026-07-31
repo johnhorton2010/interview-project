@@ -1,13 +1,14 @@
 import React, { useRef } from 'react';
 import { matchAll, refOf, figures, saleOf, refundOf } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
-import { fmt, sfmt, neg, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
+import { fmt, sfmt, neg, dec, decNeg, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
 import { SortHeader, BandLabel, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 import { transactionsHelp, BAND_HELP } from './columnHelp.js';
+import { COL, EXPORT_COLUMNS, project } from './exportColumns.js';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -275,20 +276,77 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const exportCsv = () => {
     let n;
     if (settleCentric) {
+      const cols = EXPORT_COLUMNS.transactionsSettlement;
       const rows = settleRows
         .map((o) => {
           const parts = o.r.settlements.length;
           const idx = o.r.settlements.indexOf(o.x);
+          // The ledger-side figures belong to the transaction, so only the line the table
+          // prints them on carries them; the rest read 〃 on screen and blank here.
           const carrier = carrierOf[o.r.id] === idx + 1;
-          return [o.x.ref, parts > 1 ? `${idx + 1}/${parts}` : '', o.x.date, o.x.merchantId, o.x.merchantRef || '', carrier ? dec(saleOf(o.r)) : '', carrier ? dec(refundOf(o.r)) : '', dec(feesOf(o.x)), carrier ? dec(o.r.rowExpected) : '', dec(o.x.settled), carrier ? dec(o.r.rowImpact) : '', getCategory(o.r.category).label, o.r.ledger ? o.r.ledger.id : ''];
+          const carried = (v) => (carrier ? v : '');
+          return project(cols, {
+            [COL.networkRef]: o.x.ref,
+            [COL.part]: parts > 1 ? `${idx + 1}/${parts}` : '',
+            [COL.txnId]: o.r.ledger ? o.r.ledger.id : '',
+            [COL.capturedOn]: o.r.ledger ? o.r.ledger.capturedAt : '',
+            [COL.settledOn]: o.x.date,
+            [COL.merchant]: o.x.merchantId,
+            [COL.merchantRef]: o.x.merchantRef || '',
+            [COL.sales]: carried(dec(saleOf(o.r))),
+            [COL.refunds]: carried(decNeg(refundOf(o.r))),
+            // Fees and Settled are per-payout, so they are never carried.
+            [COL.fees]: decNeg(feesOf(o.x)),
+            [COL.expected]: carried(dec(o.r.rowExpected)),
+            [COL.settled]: dec(o.x.settled),
+            [COL.discrepancy]: carried(dec(o.r.rowImpact)),
+            [COL.category]: getCategory(o.r.category).label,
+            [COL.severity]: getCategory(o.r.category).sev,
+          });
         })
-        .concat(neverSettled.map((r) => ['', '', '', r.merchantId, r.ledger.merchantRef || '', dec(saleOf(r)), dec(refundOf(r)), '', dec(r.rowExpected), '', dec(r.rowImpact), getCategory(r.category).label, r.ledger.id]));
-      n = downloadCsv('transactions-by-settlement.csv', ['Network ref', 'Part', 'Settled on', 'Merchant', 'Merchant ref', 'Sales', 'Refunds', 'Fees', 'Exp pay', 'Settled', 'Discrepancy', 'Category', 'Ledger txn'], rows);
+        .concat(
+          neverSettled.map((r) =>
+            project(cols, {
+              [COL.txnId]: r.ledger.id,
+              [COL.capturedOn]: r.ledger.capturedAt,
+              [COL.merchant]: r.merchantId,
+              [COL.merchantRef]: r.ledger.merchantRef || '',
+              [COL.sales]: dec(saleOf(r)),
+              [COL.refunds]: decNeg(refundOf(r)),
+              [COL.expected]: dec(r.rowExpected),
+              [COL.discrepancy]: dec(r.rowImpact),
+              [COL.category]: getCategory(r.category).label,
+              [COL.severity]: getCategory(r.category).sev,
+            }),
+          ),
+        );
+      n = downloadCsv('transactions-by-settlement.csv', cols, rows);
     } else {
+      const cols = EXPORT_COLUMNS.transactionsLedger;
+      // `ledgerRows.concat(orphanRows)` rather than `txVisible`: the same set, but in the
+      // order the table renders it, so the file follows the active sort.
       n = downloadCsv(
         'transactions.csv',
-        ['Txn id', 'Captured on', 'Merchant', 'Merchant ref', 'Sales', 'Refunds', 'Fees', 'Exp pay', 'Settled', 'Discrepancy', 'Category', 'Network refs'],
-        txVisible.map((r) => [r.ledger ? r.ledger.id : '', r.ledger ? r.ledger.capturedAt : '', r.merchantId, r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '', dec(saleOf(r)), dec(refundOf(r)), dec(r.rowFees), dec(r.rowExpected), r.settlements.length ? dec(r.rowActual) : '', dec(r.rowImpact), getCategory(r.category).label, r.settlements.map((x) => x.ref).join(' ')]),
+        cols,
+        ledgerRows.concat(orphanRows).map((r) =>
+          project(cols, {
+            [COL.txnId]: r.ledger ? r.ledger.id : '',
+            // The only file that folds several refs into a cell — one row per transaction.
+            [COL.networkRef]: r.settlements.map((x) => x.ref).join(' '),
+            [COL.capturedOn]: r.ledger ? r.ledger.capturedAt : '',
+            [COL.settledOn]: r.settlements.length ? r.date : '',
+            [COL.merchant]: r.merchantId,
+            [COL.merchantRef]: r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '',
+            [COL.sales]: dec(saleOf(r)),
+            [COL.refunds]: decNeg(refundOf(r)),
+            [COL.fees]: decNeg(r.rowFees),
+            [COL.expected]: dec(r.rowExpected),
+            [COL.settled]: r.settlements.length ? dec(r.rowActual) : '',
+            [COL.discrepancy]: dec(r.rowImpact),
+            [COL.category]: getCategory(r.category).label,
+            [COL.severity]: getCategory(r.category).sev,
+          }),
+        ),
       );
     }
     flash(`${settleCentric ? 'transactions-by-settlement.csv' : 'transactions.csv'} — ${n} rows exported`);

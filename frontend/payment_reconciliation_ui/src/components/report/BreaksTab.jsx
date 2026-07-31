@@ -1,13 +1,14 @@
 import React, { useRef } from 'react';
 import { matchAll, refOf, saleOf, refundOf } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
-import { fmt, sfmt, neg, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
+import { fmt, sfmt, neg, dec, decNeg, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, copyText, FilterStrip } from '../common.jsx';
 import { SortHeader, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 import { BREAKS_HELP as HELP } from './columnHelp.js';
+import { COL, EXPORT_COLUMNS, project } from './exportColumns.js';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -131,54 +132,50 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
   };
   const sortLabel = (SORT_LABEL[sortKey] || 'category name') + (sortDir === 'asc' ? ' ↑ ascending' : ' ↓ descending');
 
+  // One line per settlement, so a break that settled in parts spans several. Rows are
+  // built by name and projected through the header, rather than as an array whose indices
+  // had to be kept in lockstep with it by hand.
   const exportCsv = () => {
     const out = filtered.reduce((acc, r) => {
-      // Index-addressed below, so these must stay in lockstep with the header array.
-      const [SALES, REFUNDS, EXP_PAY, SETTLED, INTERCHANGE, PROCESSOR, DISC] = [8, 9, 10, 11, 12, 13, 14];
-      const b = [
-        getCategory(r.category).label,
-        getCategory(r.category).sev,
-        r.merchantId,
-        r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '',
-        r.ledger ? r.ledger.id : '',
-        '',
-        r.ledger ? r.ledger.capturedAt : '',
-        '',
-        dec(saleOf(r)),
-        dec(refundOf(r)),
-        dec(r.rowExpected),
-        '',
-        '',
-        '',
-        dec(r.rowImpact),
-      ];
-      if (!r.settlements.length) return acc.concat([b]);
+      const parts = r.settlements.length;
+      // The transaction-level fields, shared by every line this break expands into.
+      const shared = {
+        [COL.category]: getCategory(r.category).label,
+        [COL.severity]: getCategory(r.category).sev,
+        [COL.merchant]: r.merchantId,
+        [COL.merchantRef]: r.ledger ? r.ledger.merchantRef || '' : r.settlements[0].merchantRef || '',
+        [COL.txnId]: r.ledger ? r.ledger.id : '',
+        [COL.capturedOn]: r.ledger ? r.ledger.capturedAt : '',
+        [COL.sales]: dec(saleOf(r)),
+        [COL.refunds]: decNeg(refundOf(r)),
+        [COL.expected]: dec(r.rowExpected),
+        [COL.discrepancy]: dec(r.rowImpact),
+      };
+      if (!parts) return acc.concat([project(EXPORT_COLUMNS.breaks, shared)]);
       return acc.concat(
-        r.settlements.map((x, i) => {
-          const row = b.slice();
-          row[5] = x.ref;
-          row[7] = x.date;
-          row[SETTLED] = dec(x.settled);
-          row[INTERCHANGE] = dec(x.interchange);
-          row[PROCESSOR] = dec(x.processor);
-          // The ledger-side figures belong to the transaction, not to each payout, so
-          // they print once and are blank on every later settlement row.
-          if (i > 0) {
-            row[SALES] = '';
-            row[REFUNDS] = '';
-            row[EXP_PAY] = '';
-            row[DISC] = '';
-          }
-          return row;
-        }),
+        r.settlements.map((x, i) =>
+          project(EXPORT_COLUMNS.breaks, {
+            ...shared,
+            [COL.networkRef]: x.ref,
+            [COL.part]: parts > 1 ? `${i + 1}/${parts}` : '',
+            [COL.settledOn]: x.date,
+            [COL.interchange]: decNeg(x.interchange),
+            [COL.processor]: decNeg(x.processor),
+            [COL.fees]: decNeg((x.interchange || 0) + (x.processor || 0)),
+            [COL.settled]: dec(x.settled),
+            // The ledger-side figures belong to the transaction, not to each payout, so
+            // they print on part 1 and are blank on every later line.
+            ...(i > 0
+              ? { [COL.sales]: '', [COL.refunds]: '', [COL.expected]: '', [COL.discrepancy]: '' }
+              : null),
+          }),
+        ),
       );
     }, []);
-    const n = downloadCsv(
-      'breaks.csv',
-      ['Category', 'Severity', 'Merchant', 'Merchant ref', 'Internal txn id', 'Network ref', 'Captured on', 'Settled on', 'Sales', 'Refunds', 'Exp pay', 'Settled', 'Interchange', 'Processor', 'Discrepancy'],
-      out,
-    );
-    flash(`breaks.csv — ${n} rows exported`);
+    const n = downloadCsv('breaks.csv', EXPORT_COLUMNS.breaks, out);
+    // Lines and breaks differ whenever a break settled in parts, and the footer beside
+    // this counts breaks — so say both rather than pick one to be wrong about.
+    flash(`breaks.csv — ${n === filtered.length ? `${n} rows` : `${filtered.length} breaks over ${n} rows`}`);
   };
 
   const brkCatLabel = catFilter.length === 0 ? 'All categories' : catFilter.length === 1 ? getCategory(catFilter[0]).label : catFilter.length + ' categories';

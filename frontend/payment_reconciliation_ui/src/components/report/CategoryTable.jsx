@@ -1,12 +1,13 @@
 import React, { useRef } from 'react';
 import { categorySummary, figures } from '../../domain/selectors.js';
-import { dec, downloadCsv } from '../../domain/format.js';
+import { dec, decNeg, downloadCsv } from '../../domain/format.js';
 import { C, SANS, INK, INK2 } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton } from '../common.jsx';
 import { HeadCell, Num, TableFooter, GlyphKey } from './TableParts.jsx';
 import { SUMMARY_HELP as HELP } from './columnHelp.js';
+import { COL, EXPORT_COLUMNS, project } from './exportColumns.js';
 
 const SPEC = [
   { key: 'category', min: 120 },
@@ -32,21 +33,24 @@ export default function CategoryTable({ model, nav, flash }) {
   const exportCsv = () => {
     const n = downloadCsv(
       'reconciliation-summary.csv',
-      ['Category', 'Severity', 'Total n', 'Ledger n', 'Settle n', 'Sales', 'Refunds', 'Fees', 'Exp pay', 'Settled', 'Discrepancy'],
-      rows.map((c) => [
-        c.label,
-        c.severity,
-        c.totalCount,
-        c.rawLedgerN,
-        c.rawSettleN,
+      EXPORT_COLUMNS.summary,
+      rows.map((c) => {
         // Mirrors the table: the excluded row carries no monetary figure in either place.
-        c.isQuarantine ? 'N/A' : dec(c.rawSales),
-        c.isQuarantine ? 'N/A' : dec(-c.rawRefunds),
-        c.isQuarantine ? 'N/A' : dec(-c.rawFees),
-        c.isQuarantine ? 'N/A' : dec(c.rawSales - c.rawRefunds - c.rawFees),
-        c.isQuarantine ? 'N/A' : dec(c.rawSettled),
-        c.isQuarantine ? 'N/A' : dec(c.rawImpact),
-      ]),
+        const money = (v) => (c.isQuarantine ? 'N/A' : v);
+        return project(EXPORT_COLUMNS.summary, {
+          [COL.category]: c.label,
+          [COL.severity]: c.severity,
+          [COL.totalN]: c.totalCount,
+          [COL.ledgerN]: c.rawLedgerN,
+          [COL.settleN]: c.rawSettleN,
+          [COL.sales]: money(dec(c.rawSales)),
+          [COL.refunds]: money(decNeg(c.rawRefunds)),
+          [COL.fees]: money(decNeg(c.rawFees)),
+          [COL.expected]: money(dec(c.rawSales - c.rawRefunds - c.rawFees)),
+          [COL.settled]: money(dec(c.rawSettled)),
+          [COL.discrepancy]: money(dec(c.rawImpact)),
+        });
+      }),
     );
     flash(`reconciliation-summary.csv — ${n} rows exported`);
   };
