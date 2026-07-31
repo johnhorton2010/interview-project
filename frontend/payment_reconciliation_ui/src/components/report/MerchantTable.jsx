@@ -1,9 +1,11 @@
 import React, { useRef } from 'react';
 import { merchantRollup, matchMerchantAll } from '../../domain/selectors.js';
-import { fmt, sfmt, dec, downloadCsv } from '../../domain/format.js';
-import { C, MONO, SANS, INK, INK2, NEG, POS } from '../../styles/tokens.js';
+import { fmt, sfmt, neg, dec, downloadCsv } from '../../domain/format.js';
+import { C, INK } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
+import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, GhostButton, SegGroup, FilterStrip } from '../common.jsx';
+import { HeadCell, Num, EmptyState } from './TableParts.jsx';
 
 const SPEC = [
   { key: 'merchant', min: 72 },
@@ -21,19 +23,6 @@ const SPEC = [
   { key: 'breaks', min: 40, align: 'right' },
   { key: 'quarantine', min: 56, align: 'right' },
 ];
-const rowPad = '10px';
-
-const Head = ({ children, right, title }) => (
-  <span role="columnheader" title={title} style={{ textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap' }}>
-    {children}
-  </span>
-);
-const Num = ({ children, color }) => (
-  <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', color }}>
-    {children}
-  </span>
-);
-
 // Search grammar for this tab. Narrower than Breaks or Transactions on purpose: a
 // rollup row has no ids, refs, dates or category — only a merchant and its money.
 const SEARCH_TITLE =
@@ -45,7 +34,7 @@ const SEARCH_TITLE =
 export default function MerchantTable({ model, nav, mr, setMr, flash }) {
   const { query, breaksOnly } = mr;
   const tableRef = useRef(null);
-  const { template: COLS, gap: GAP } = useColumns(tableRef, SPEC);
+  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC);
   const { rows: all } = merchantRollup(model);
   const rows = all.filter((m) => (!breaksOnly || m.hasBreaks) && matchMerchantAll(m, query));
 
@@ -77,11 +66,11 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
   };
 
   return (
-    <section style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
+    <section style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
       <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Per-merchant rollup</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7b8697' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
             Click a row to filter the break list, to open Transactions when a merchant has no breaks, or Quarantine when its records are all quarantined.
           </p>
           <input
@@ -95,7 +84,7 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, color: '#9aa3b0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Show</span>
+            <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Show</span>
             <SegGroup
               options={[
                 { label: 'All', on: !breaksOnly, title: 'Every merchant in the report', onClick: () => setMr((m) => ({ ...m, breaksOnly: false })) },
@@ -110,24 +99,22 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
       <FilterStrip bits={filterBits} onClear={() => setMr((m) => ({ ...m, query: '', breaksOnly: false }))} />
 
       <div ref={tableRef} role="table" aria-label="Per-merchant rollup" style={{ fontSize: 13 }}>
-        <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 18px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
-          <Head>Merchant</Head>
-          <Head right>Sales</Head>
-          <Head right>Refunds</Head>
-          <Head right title="Interchange fees">Interchg</Head>
-          <Head right title="Processor fees">Proc</Head>
-          <Head right title="Total fees — interchange + processor">Fees</Head>
-          <Head right title="Expected payout — sales − refunds − fees">Exp pay</Head>
-          <Head right>Settled</Head>
-          <Head right>Discrepancy</Head>
-          <Head right title="Cleanly matched records">Clean</Head>
-          <Head right>Breaks</Head>
-          <Head right>Quarantine</Head>
+        <div role="row" style={headerRow(COLS, GAP)}>
+          <HeadCell style={cell('merchant')}>Merchant</HeadCell>
+          <HeadCell style={cell('sales')}>Sales</HeadCell>
+          <HeadCell style={cell('refunds')}>Refunds</HeadCell>
+          <HeadCell style={cell('interchange')} title="Interchange fees">Interchg</HeadCell>
+          <HeadCell style={cell('processor')} title="Processor fees">Proc</HeadCell>
+          <HeadCell style={cell('fees')} title="Total fees — interchange + processor">Fees</HeadCell>
+          <HeadCell style={cell('expected')} title="Expected payout — sales − refunds − fees">Exp pay</HeadCell>
+          <HeadCell style={cell('settled')}>Settled</HeadCell>
+          <HeadCell style={cell('discrepancy')}>Discrepancy</HeadCell>
+          <HeadCell style={cell('clean')} title="Cleanly matched records">Clean</HeadCell>
+          <HeadCell style={cell('breaks')}>Breaks</HeadCell>
+          <HeadCell style={cell('quarantine')}>Quarantine</HeadCell>
         </div>
 
-        {rows.length === 0 && (
-          <div style={{ padding: '22px 18px', color: '#9aa3b0', fontSize: 13 }}>No merchants match these filters.</div>
-        )}
+        {rows.length === 0 && <EmptyState>No merchants match these filters.</EmptyState>}
 
         {rows.map((m) => (
           <HoverRow
@@ -144,42 +131,50 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
                   ? nav.toBreaks({ merchantFilter: m.merchantId, catFilter: [] })
                   : nav.toTransactions({ query: `merchant:${m.merchantId}` })
             }
-            style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: `${rowPad} 18px`, borderBottom: `1px solid ${C.rowRule}`, cursor: 'pointer', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}
+            style={{ ...bodyRow(COLS, GAP), ...rowRule }}
             hoverStyle={{ background: C.hover }}
           >
-            <span role="cell" style={{ color: INK }}>{m.merchantId}</span>
-            <Num color={INK}>{m.sales}</Num>
-            <Num color={INK}>{m.refunds}</Num>
-            <Num color={INK2}>{m.interchange}</Num>
-            <Num color={INK2}>{m.processor}</Num>
-            <Num color={INK2}>{m.fees}</Num>
-            <Num color={INK}>{m.expected}</Num>
-            <Num color={INK}>{m.settled}</Num>
-            <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 500, color: m.discColor }}>{m.discrepancy}</span>
-            <Num color={INK}>{m.clean}</Num>
-            <Num color={INK}>{m.breaks}</Num>
-            <Num color={INK}>{m.quarantine}</Num>
+            {/* The merchant id is this row's identity, so it keeps full ink at the table's
+                base size — the treatment Transactions gives its own id column. */}
+            <span role="cell" style={{ ...cell('merchant'), color: INK }}>{m.merchantId}</span>
+            <Num style={cell('sales')} color={INK}>{m.sales}</Num>
+            {/* A quarantine-only merchant reads N/A here, and `deductionColor(0)` keeps it
+                neutral — the same neutral a genuine zero gets. */}
+            <Num style={cell('refunds')} color={deductionColor(m.raw.refunds)}>{m.refunds}</Num>
+            <Num style={cell('interchange')} color={deductionColor(m.raw.interchange)}>{m.interchange}</Num>
+            <Num style={cell('processor')} color={deductionColor(m.raw.processor)}>{m.processor}</Num>
+            <Num style={cell('fees')} color={deductionColor(m.raw.fees)}>{m.fees}</Num>
+            <Num style={cell('expected')} color={INK}>{m.expected}</Num>
+            <Num style={cell('settled')} color={INK}>{m.settled}</Num>
+            {/* A quarantine-only row prints N/A over a raw disc of 0, which `discColor`
+                already renders in normal ink — no special case needed. */}
+            <Num style={{ ...cell('discrepancy'), fontWeight: 500 }} color={discColor(m.raw.disc)}>
+              {m.discrepancy}
+            </Num>
+            <Num style={cell('clean')} color={INK}>{m.clean}</Num>
+            <Num style={cell('breaks')} color={INK}>{m.breaks}</Num>
+            <Num style={cell('quarantine')} color={INK}>{m.quarantine}</Num>
           </HoverRow>
         ))}
 
-        <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 18px', borderTop: `1px solid ${C.borderStrong}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
-          <span role="cell" style={{ fontFamily: SANS, whiteSpace: 'nowrap' }}>
+        <div role="row" style={totalRow(COLS, GAP)}>
+          <span role="cell" style={totalLabel}>
             {filtered ? `Total — ${rows.length} of ${all.length} merchants` : 'Total'}
           </span>
-          <Num color={INK}>{fmt(t.sales)}</Num>
-          <Num color={INK}>{fmt(t.refunds)}</Num>
-          <Num color={INK}>{fmt(t.interchange)}</Num>
-          <Num color={INK}>{fmt(t.processor)}</Num>
-          <Num color={INK}>{fmt(t.fees)}</Num>
-          <Num color={INK}>{fmt(t.expected)}</Num>
-          <Num color={INK}>{fmt(t.settled)}</Num>
-          <Num color={t.disc === 0 ? INK : t.disc < 0 ? NEG : POS}>{sfmt(t.disc)}</Num>
-          <Num color={INK}>{t.clean}</Num>
-          <Num color={INK}>{t.breaks}</Num>
-          <Num color={INK}>{t.quar}</Num>
+          <Num style={cell('sales')} color={INK}>{fmt(t.sales)}</Num>
+          <Num style={cell('refunds')} color={deductionColor(t.refunds)}>{neg(t.refunds)}</Num>
+          <Num style={cell('interchange')} color={deductionColor(t.interchange)}>{neg(t.interchange)}</Num>
+          <Num style={cell('processor')} color={deductionColor(t.processor)}>{neg(t.processor)}</Num>
+          <Num style={cell('fees')} color={deductionColor(t.fees)}>{neg(t.fees)}</Num>
+          <Num style={cell('expected')} color={INK}>{fmt(t.expected)}</Num>
+          <Num style={cell('settled')} color={INK}>{fmt(t.settled)}</Num>
+          <Num style={cell('discrepancy')} color={discColor(t.disc)}>{sfmt(t.disc)}</Num>
+          <Num style={cell('clean')} color={INK}>{t.clean}</Num>
+          <Num style={cell('breaks')} color={INK}>{t.breaks}</Num>
+          <Num style={cell('quarantine')} color={INK}>{t.quar}</Num>
         </div>
       </div>
-      <p style={{ margin: 0, padding: '12px 18px', borderTop: `1px solid ${C.borderSoft}`, fontSize: 11, color: '#9aa3b0', textWrap: 'pretty' }}>
+      <p style={{ margin: 0, padding: '12px 18px', borderTop: `1px solid ${C.borderSoft}`, fontSize: 11, color: C.dim, textWrap: 'pretty' }}>
         Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy. A merchant whose records are all quarantined reads N/A across those columns.
       </p>
     </section>

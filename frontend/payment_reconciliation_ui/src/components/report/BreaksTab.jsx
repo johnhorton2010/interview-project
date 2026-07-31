@@ -1,10 +1,12 @@
 import React, { useRef } from 'react';
 import { matchAll, refOf, saleOf, refundOf } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
-import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
-import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
+import { fmt, sfmt, neg, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
+import { C, MONO, SANS, INK, INK2, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
+import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, copyText, FilterStrip } from '../common.jsx';
+import { SortHeader, EmptyState, TableFooter } from './TableParts.jsx';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -37,38 +39,11 @@ const SEARCH_TITLE =
   'A decimal matches sales, refunds, fees, settled or discrepancy. A date or range (2026-06-01..2026-06-05) ' +
   'matches either date column; prefix with captured: or settled: to pin it to one.';
 
-function SortHeader({ label, active, dir, onClick, right }) {
-  return (
-    <button
-      type="button"
-      role="columnheader"
-      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      onClick={onClick}
-      style={{
-        border: 0,
-        background: 'none',
-        padding: 0,
-        font: 'inherit',
-        color: 'inherit',
-        textTransform: 'inherit',
-        letterSpacing: 'inherit',
-        cursor: 'pointer',
-        textAlign: right ? 'right' : 'left',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-      }}
-    >
-      {label}
-      {active ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
-    </button>
-  );
-}
-
 export default function BreaksTab({ model, br, setBr, expanded, setExpanded, flash }) {
   const { query, catFilter, merchantFilter, sortKey, sortDir } = br;
   const catMenuRef = useDismiss(br.catOpen, () => setBr((b) => ({ ...b, catOpen: false })));
   const tableRef = useRef(null);
-  const { template: COLS, gap: GAP, cell, isRight } = useColumns(tableRef, SPEC);
+  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC);
 
   const breaks = model.included.filter((r) => r.category !== 'CLEAN_MATCH');
   const chipCounts = {};
@@ -137,7 +112,6 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     }),
     { sales: 0, refunds: 0, fees: 0, expected: 0, settled: 0, impact: 0 },
   );
-  const totalImpactColor = t.impact === 0 ? INK2 : t.impact < 0 ? NEG : POS;
 
   // Deep link to the open row, matching the design footer's right span.
   const deepLink = expanded ? `/report/breaks/${expanded}` : '/report/breaks';
@@ -211,7 +185,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
   return (
     <section>
       {/* toolbar */}
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <input
           type="search"
           value={query}
@@ -231,13 +205,13 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
             type="button"
             aria-expanded={br.catOpen}
             onClick={() => setBr((b) => ({ ...b, catOpen: !b.catOpen }))}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${catFilter.length ? '#bcd0f5' : C.border}`, background: catFilter.length ? '#eaf0fd' : '#fff', color: catFilter.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${catFilter.length ? '#bcd0f5' : C.border}`, background: catFilter.length ? '#eaf0fd' : C.surface, color: catFilter.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             <span>{brkCatLabel}</span>
-            <span aria-hidden="true" style={{ color: '#9aa3b0', fontSize: 10 }}>▾</span>
+            <span aria-hidden="true" style={{ color: C.dim, fontSize: 10 }}>▾</span>
           </button>
           {br.catOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30, width: 272, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30, width: 272, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
               {Object.keys(chipCounts).map((k) => {
                 const on = catFilter.includes(k);
                 return (
@@ -247,7 +221,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
                       <SevDot color={SEV_COLOR[getCategory(k).sev]} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(k).label}</span>
                     </span>
-                    <span style={{ fontFamily: MONO, fontSize: 11, color: '#9aa3b0' }}>{chipCounts[k]}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.dim }}>{chipCounts[k]}</span>
                   </label>
                 );
               })}
@@ -265,28 +239,34 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
 
       <FilterStrip bits={filterBits} onClear={() => setBr((b) => ({ ...b, catFilter: [], merchantFilter: null, query: '' }))} />
 
-      <div ref={tableRef} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
+      <div ref={tableRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
         <div role="table" aria-label="Breaks" style={{ fontSize: 13 }}>
-          <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697', position: 'sticky', top: 56, zIndex: 5 }}>
-            <SortHeader label="Category" active={sortKey === 'category'} dir={sortDir} onClick={() => setSort('category')} />
-            <SortHeader label="Merchant" active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
-            <SortHeader label="Merchant ref" active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />
-            <SortHeader label="Sales" right={isRight('sales')} active={sortKey === 'sales'} dir={sortDir} onClick={() => setSort('sales')} />
-            <SortHeader label="Refunds" right={isRight('refunds')} active={sortKey === 'refunds'} dir={sortDir} onClick={() => setSort('refunds')} />
-            <SortHeader label="Fees" right={isRight('fees')} active={sortKey === 'fees'} dir={sortDir} onClick={() => setSort('fees')} />
-            <SortHeader label="Exp pay" right={isRight('expected')} active={sortKey === 'expected'} dir={sortDir} onClick={() => setSort('expected')} />
-            <SortHeader label="Settled" right={isRight('settled')} active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
-            <SortHeader label="Discrepancy" right={isRight('impact')} active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
-            <SortHeader label="Captured on" right={isRight('captured')} active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
-            <SortHeader label="Settled on" right={isRight('date')} active={sortKey === 'date'} dir={sortDir} onClick={() => setSort('date')} />
+          <div role="row" style={headerRow(COLS, GAP, true)}>
+            <SortHeader label="Category" style={cell('category')} active={sortKey === 'category'} dir={sortDir} onClick={() => setSort('category')} />
+            <SortHeader label="Merchant" style={cell('merchant')} active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
+            <SortHeader label="Merchant ref" style={cell('ref')} active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />
+            <SortHeader label="Sales" style={cell('sales')} active={sortKey === 'sales'} dir={sortDir} onClick={() => setSort('sales')} />
+            <SortHeader label="Refunds" style={cell('refunds')} active={sortKey === 'refunds'} dir={sortDir} onClick={() => setSort('refunds')} />
+            <SortHeader label="Fees" style={cell('fees')} active={sortKey === 'fees'} dir={sortDir} onClick={() => setSort('fees')} />
+            <SortHeader label="Exp pay" title="Expected payout — sales − refunds − fees" style={cell('expected')} active={sortKey === 'expected'} dir={sortDir} onClick={() => setSort('expected')} />
+            <SortHeader label="Settled" style={cell('settled')} active={sortKey === 'settled'} dir={sortDir} onClick={() => setSort('settled')} />
+            <SortHeader label="Discrepancy" style={cell('impact')} active={sortKey === 'impact'} dir={sortDir} onClick={() => setSort('impact')} />
+            <SortHeader label="Captured on" style={cell('captured')} active={sortKey === 'captured'} dir={sortDir} onClick={() => setSort('captured')} />
+            <SortHeader label="Settled on" style={cell('date')} active={sortKey === 'date'} dir={sortDir} onClick={() => setSort('date')} />
             <span role="columnheader" />
           </div>
 
-          {filtered.length === 0 && <div style={{ padding: '40px 18px', textAlign: 'center', color: '#7b8697', fontSize: 13 }}>No breaks match these filters.</div>}
+          {filtered.length === 0 && <EmptyState>No breaks match these filters.</EmptyState>}
 
           {filtered.map((r) => {
             const open = expanded === r.id;
-            const impactColor = r.rowImpact === 0 ? INK2 : r.rowImpact < 0 ? NEG : POS;
+            // null, not 0, when nothing settled: no fee or settlement data exists, which is
+            // distinct from either being genuinely zero (refunds settle at $0.00). The
+            // formatters render null as '—' and the colour helpers give it the absent ink,
+            // so holding the value nullable is what keeps the two in step.
+            const fees = r.settlements.length ? r.rowFees : null;
+            const actual = r.settlements.length ? r.rowActual : null;
+            const captured = r.ledger ? r.ledger.capturedAt : '—';
             const ledgerRef = r.ledger ? r.ledger.merchantRef || '' : '';
             const settleRef = r.settlements[0] ? r.settlements[0].merchantRef || '' : '';
             const primaryRef = r.ledger ? ledgerRef || '—' : settleRef || '—';
@@ -297,12 +277,12 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
             return (
               // Hover lives on the wrapper so the cells, the subline and the expanded
               // detail all tint together as one row (design lines 407/431).
-              <HoverRow key={r.id} style={{ borderBottom: `1px solid ${C.rowRule}` }} hoverStyle={{ background: C.hover }}>
+              <HoverRow key={r.id} style={rowRule} hoverStyle={{ background: C.hover }}>
                 <div
                   role="row"
                   aria-expanded={open}
                   onClick={toggle}
-                  style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '10px 16px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums' }}
+                  style={{ ...bodyRow(COLS, GAP), background: open ? C.hover : 'transparent' }}
                 >
                   <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, fontFamily: SANS }}>
                     <SevDot color={SEV_COLOR[getCategory(r.category).sev]} />
@@ -310,31 +290,29 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
                   </span>
                   <span role="cell" style={{ color: INK2, fontSize: 12, alignSelf: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.merchantId}</span>
                   <span role="cell" style={{ display: 'grid', gap: 2, alignContent: 'center', minWidth: 0, overflow: 'hidden' }}>
-                    <span style={{ color: INK2, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryRef}</span>
-                    {refLine2 && <span style={{ color: '#9aa3b0', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{refLine2}</span>}
+                    <span style={{ color: labelColor(primaryRef), fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryRef}</span>
+                    {refLine2 && <span style={{ color: C.dim, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{refLine2}</span>}
                   </span>
-                  <span role="cell" style={{ ...cell('sales'), whiteSpace: 'nowrap' }}>{saleOf(r) === null ? '—' : fmt(saleOf(r))}</span>
-                  {/* Only a real refund is red; the placeholder dash stays neutral so the
-                      column does not read as a wall of warnings on sale rows. */}
-                  <span role="cell" style={{ ...cell('refunds'), whiteSpace: 'nowrap', color: refundOf(r) === null ? undefined : NEG }}>{refundOf(r) === null ? '—' : fmt(refundOf(r))}</span>
-                  {/* '—' not '$0.00' when nothing settled: no fee data exists, which is
-                      distinct from fees genuinely being zero (refunds settle at $0.00). */}
-                  <span role="cell" style={{ ...cell('fees'), whiteSpace: 'nowrap', color: INK2 }}>{r.settlements.length ? fmt(r.rowFees) : '—'}</span>
-                  <span role="cell" style={{ ...cell('expected'), whiteSpace: 'nowrap' }}>{fmt(r.rowExpected)}</span>
-                  <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap' }}>{r.settlements.length ? fmt(r.rowActual) : '—'}</span>
-                  <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', fontWeight: 500, color: impactColor }}>{sfmt(r.rowImpact)}</span>
-                  <span role="cell" style={{ ...cell('captured'), color: r.ledger ? INK2 : '#9aa3b0', fontSize: 12, alignSelf: 'center' }}>{r.ledger ? r.ledger.capturedAt : '—'}</span>
-                  <span role="cell" style={{ ...cell('date'), color: INK2, fontSize: 12, alignSelf: 'center' }}>{r.date}</span>
-                  <span role="cell" aria-hidden="true" style={{ ...cell('caret'), color: '#9aa3b0', alignSelf: 'center' }}>{open ? '▴' : '▾'}</span>
+                  {/* Colour carries sign only: a real deduction is red, a zero is not, and a
+                      dash takes the absent ink so it never outweighs a figure beside it. */}
+                  <span role="cell" style={{ ...cell('sales'), whiteSpace: 'nowrap', color: figureColor(saleOf(r)) }}>{fmt(saleOf(r))}</span>
+                  <span role="cell" style={{ ...cell('refunds'), whiteSpace: 'nowrap', color: deductionColor(refundOf(r)) }}>{neg(refundOf(r))}</span>
+                  <span role="cell" style={{ ...cell('fees'), whiteSpace: 'nowrap', color: deductionColor(fees) }}>{neg(fees)}</span>
+                  <span role="cell" style={{ ...cell('expected'), whiteSpace: 'nowrap', color: figureColor(r.rowExpected) }}>{fmt(r.rowExpected)}</span>
+                  <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap', color: figureColor(actual) }}>{fmt(actual)}</span>
+                  <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', fontWeight: 500, color: discColor(r.rowImpact) }}>{sfmt(r.rowImpact)}</span>
+                  <span role="cell" style={{ ...cell('captured'), color: labelColor(captured), fontSize: 12, alignSelf: 'center' }}>{captured}</span>
+                  <span role="cell" style={{ ...cell('date'), color: labelColor(r.date), fontSize: 12, alignSelf: 'center' }}>{r.date}</span>
+                  <span role="cell" aria-hidden="true" style={{ ...cell('caret'), color: C.dim, alignSelf: 'center' }}>{open ? '▴' : '▾'}</span>
                 </div>
                 {(ledgerId || netRef) && (
-                  <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px 7px', marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: '#7b8697', whiteSpace: 'nowrap' }}>
+                  <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
                     <button
                       type="button"
                       disabled={!ledgerId}
                       title="Copy internal txn id"
                       onClick={(e) => { e.stopPropagation(); copyText(ledgerId, 'Internal txn id', flash); }}
-                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: ledgerId ? 'inherit' : '#c2c8d2', cursor: ledgerId ? 'copy' : 'default' }}
+                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: ledgerId ? 'inherit' : C.disabled, cursor: ledgerId ? 'copy' : 'default' }}
                     >
                       {ledgerId || 'no ledger id'}
                     </button>
@@ -344,7 +322,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
                       disabled={!netRef}
                       title="Copy network ref"
                       onClick={(e) => { e.stopPropagation(); copyText(netRef, 'Network ref', flash); }}
-                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: netRef ? 'inherit' : '#c2c8d2', cursor: netRef ? 'copy' : 'default' }}
+                      style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: netRef ? 'inherit' : C.disabled, cursor: netRef ? 'copy' : 'default' }}
                     >
                       {netRef ? shortRefOf(netRef) : 'no settlement'}
                     </button>
@@ -358,25 +336,26 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
           {/* Money cells go through `cell(key)` like the body rows, so the total lines up
               with the columns rather than merely being right-aligned. Dates get no total. */}
           {filtered.length > 0 && (
-            <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 16px', borderTop: `1px solid ${C.borderStrong}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
-              <span role="cell" style={{ fontFamily: SANS, fontSize: 12, whiteSpace: 'nowrap' }}>
+            <div role="row" style={totalRow(COLS, GAP)}>
+              <span role="cell" style={totalLabel}>
                 {filtered.length < breaks.length ? `Total — ${filtered.length} of ${breaks.length} breaks` : 'Total'}
               </span>
               <span /><span />
-              <span role="cell" style={{ ...cell('sales'), whiteSpace: 'nowrap' }}>{fmt(t.sales)}</span>
-              <span role="cell" style={{ ...cell('refunds'), whiteSpace: 'nowrap', color: t.refunds === 0 ? undefined : NEG }}>{fmt(t.refunds)}</span>
-              <span role="cell" style={{ ...cell('fees'), whiteSpace: 'nowrap', color: INK2 }}>{fmt(t.fees)}</span>
-              <span role="cell" style={{ ...cell('expected'), whiteSpace: 'nowrap' }}>{fmt(t.expected)}</span>
-              <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap' }}>{fmt(t.settled)}</span>
-              <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', color: totalImpactColor }}>{sfmt(t.impact)}</span>
+              <span role="cell" style={{ ...cell('sales'), whiteSpace: 'nowrap', color: figureColor(t.sales) }}>{fmt(t.sales)}</span>
+              <span role="cell" style={{ ...cell('refunds'), whiteSpace: 'nowrap', color: deductionColor(t.refunds) }}>{neg(t.refunds)}</span>
+              <span role="cell" style={{ ...cell('fees'), whiteSpace: 'nowrap', color: deductionColor(t.fees) }}>{neg(t.fees)}</span>
+              <span role="cell" style={{ ...cell('expected'), whiteSpace: 'nowrap', color: figureColor(t.expected) }}>{fmt(t.expected)}</span>
+              <span role="cell" style={{ ...cell('settled'), whiteSpace: 'nowrap', color: figureColor(t.settled) }}>{fmt(t.settled)}</span>
+              <span role="cell" style={{ ...cell('impact'), whiteSpace: 'nowrap', color: discColor(t.impact) }}>{sfmt(t.impact)}</span>
               <span /><span /><span />
             </div>
           )}
         </div>
-        <div style={{ padding: '11px 16px', borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceAlt, borderRadius: '0 0 8px 8px', fontSize: 11, color: '#9aa3b0', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>{filtered.length} of {breaks.length} breaks · sorted by {sortLabel}</span>
-          <span style={{ fontFamily: MONO }}>{deepLink}</span>
-        </div>
+        <TableFooter
+          style={{ borderRadius: '0 0 8px 8px' }}
+          left={`${filtered.length} of ${breaks.length} breaks · sorted by ${sortLabel}`}
+          right={<span style={{ fontFamily: MONO }}>{deepLink}</span>}
+        />
       </div>
     </section>
   );

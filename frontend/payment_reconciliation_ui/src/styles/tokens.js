@@ -24,6 +24,8 @@ export const C = {
   hover: '#f7f9fc',
   muted: '#7b8697',
   dim: '#9aa3b0',
+  bandBg: '#f7f8fa', // section bands inside a table; the quarantined tile
+  disabled: '#c2c8d2', // a copy affordance with nothing to copy
   ink: INK,
   ink2: INK2,
   accent: ACCENT,

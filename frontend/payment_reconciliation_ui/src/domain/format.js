@@ -1,7 +1,8 @@
 // Display and CSV helpers, ported verbatim from the design component so formatting
 // (currency, signs, short refs) matches the prototype exactly. Amounts are cents.
-
-import { NEG, INK } from '../styles/tokens.js';
+//
+// Strings only — what ink a figure takes is a styling question, answered by
+// the colour helpers in styles/table.js.
 
 /** "$1,234.56" / "−$65.64" (leading minus, not parentheses — PRD §10.2). */
 export function fmt(c) {
@@ -21,13 +22,24 @@ export function sfmt(c) {
   return (c > 0 ? '+' : '') + fmt(c);
 }
 
+/**
+ * Deduction display — refunds and fees, which the report subtracts.
+ *
+ * One helper for both storage conventions: the Summary and Merchant rollups carry
+ * these as positive magnitudes, Breaks and Transactions carry refund gross already
+ * negative. `Math.abs` collapses the two, so every tab prints the same string.
+ *
+ * '—' means the value does not exist; a genuine zero prints '$0.00'. Those are
+ * distinct — a refund settles at $0.00, which is not the same as never settling.
+ */
+export function neg(c) {
+  if (c === null || c === undefined) return '—';
+  return c === 0 ? fmt(0) : fmt(-Math.abs(c));
+}
+
 /** Plain decimal string for CSV cells; '' for null. */
 export function dec(c) {
   return c === null || c === undefined ? '' : (c / 100).toFixed(2);
-}
-
-export function amtColor(c) {
-  return c === null ? '#9aa3b0' : c < 0 ? NEG : INK;
 }
 
 export function shortRefOf(ref) {

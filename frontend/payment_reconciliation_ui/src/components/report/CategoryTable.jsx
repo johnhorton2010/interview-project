@@ -1,9 +1,11 @@
 import React, { useRef } from 'react';
 import { categorySummary, figures } from '../../domain/selectors.js';
 import { dec, downloadCsv } from '../../domain/format.js';
-import { C, MONO, SANS, INK, NEG, POS } from '../../styles/tokens.js';
+import { C, SANS, INK, INK2 } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
+import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton } from '../common.jsx';
+import { HeadCell, Num } from './TableParts.jsx';
 
 const SPEC = [
   { key: 'category', min: 120 },
@@ -17,31 +19,14 @@ const SPEC = [
   { key: 'settled', min: 64, align: 'right' },
   { key: 'impact', min: 64, align: 'right' },
 ];
-const rowPad = '10px';
-
-const HeadCell = ({ children, right, title }) => (
-  <span
-    role="columnheader"
-    title={title}
-    style={{ textAlign: right ? 'right' : 'left', whiteSpace: 'nowrap' }}
-  >
-    {children}
-  </span>
-);
-
-const Num = ({ children, color }) => (
-  <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', color }}>
-    {children}
-  </span>
-);
 
 export default function CategoryTable({ model, nav, flash }) {
   const tableRef = useRef(null);
-  const { template: COLS, gap: GAP } = useColumns(tableRef, SPEC);
+  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC);
   const { rows, totals } = categorySummary(model);
-  // Footer discrepancy carries the same sign colour as the headline tile.
-  const disc = figures(model).discrepancy;
-  const discColor = disc === 0 ? INK : disc < 0 ? NEG : POS;
+  // The total row prints `totals`, but its ink comes from the underlying cents.
+  const f = figures(model);
+  const disc = f.discrepancy;
 
   const exportCsv = () => {
     const n = downloadCsv(
@@ -89,25 +74,19 @@ export default function CategoryTable({ model, nav, flash }) {
       role="row"
       onClick={() => onRow(c)}
       style={{
-        display: 'grid',
-        gridTemplateColumns: COLS,
-        gap: GAP,
-        padding: `${rowPad} 18px`,
-        borderBottom: `1px solid ${C.rowRule}`,
-        cursor: 'pointer',
+        ...bodyRow(COLS, GAP),
+        ...rowRule,
         background: c.bg,
         // Cells without an explicit colour (the category label) inherit this.
         color: c.rowInk || undefined,
-        fontFamily: MONO,
-        fontVariantNumeric: 'tabular-nums',
       }}
       hoverStyle={{ background: C.hover }}
     >
-      <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, fontFamily: SANS }}>
+      <span role="cell" style={{ ...cell('category'), display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, fontFamily: SANS }}>
         <SevDot color={c.sevColor} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
       </span>
-      <span role="cell" style={{ display: 'flex', alignItems: 'center' }}>
+      <span role="cell" style={{ ...cell('severity'), display: 'flex', alignItems: 'center' }}>
         <span
           style={{
             fontFamily: SANS,
@@ -124,26 +103,29 @@ export default function CategoryTable({ model, nav, flash }) {
           {c.severity}
         </span>
       </span>
-      <Num color={ink(c.dimColor)}>{c.totalCount}</Num>
-      <Num color={ink(c.dimColor)}>{c.sides}</Num>
-      <Num color={ink(c.salesColor)}>{c.sales}</Num>
-      <Num color={ink(c.refundColor)}>{c.refunds}</Num>
-      <Num color={ink(c.feeColor)}>{c.fees}</Num>
-      <Num color={ink(INK)}>{c.expected}</Num>
-      <Num color={ink(c.settledColor)}>{c.settled}</Num>
-      <span role="cell" style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 500, color: ink(c.impactColor) }}>
+      {/* A quarantined category reads N/A across every money column, so `ink` overrides
+          the sign colours below with the row's flat mute — those figures are not printed
+          here at all, and colouring an N/A by a number you cannot see is noise. */}
+      <Num style={cell('totalCount')} color={ink(INK2)}>{c.totalCount}</Num>
+      <Num style={cell('sides')} color={ink(INK2)}>{c.sides}</Num>
+      <Num style={cell('sales')} color={ink(INK)}>{c.sales}</Num>
+      <Num style={cell('refunds')} color={ink(deductionColor(c.rawRefunds))}>{c.refunds}</Num>
+      <Num style={cell('fees')} color={ink(deductionColor(c.rawFees))}>{c.fees}</Num>
+      <Num style={cell('expected')} color={ink(INK)}>{c.expected}</Num>
+      <Num style={cell('settled')} color={ink(INK)}>{c.settled}</Num>
+      <Num style={{ ...cell('impact'), fontWeight: 500 }} color={ink(discColor(c.rawImpact))}>
         {c.impact}
-      </span>
+      </Num>
     </HoverRow>
     );
   };
 
   return (
-    <section style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
+    <section style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
       <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Reconciliation summary</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7b8697' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
             Both sides are reported: one amount column would be ambiguous where a ledger row faces two settlements. Click a row to filter the break list.
           </p>
         </div>
@@ -151,59 +133,32 @@ export default function CategoryTable({ model, nav, flash }) {
       </div>
 
       <div ref={tableRef} role="table" aria-label="Reconciliation summary" style={{ fontSize: 13 }}>
-        <div
-          role="row"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: COLS,
-            gap: GAP,
-            padding: '9px 18px',
-            borderBottom: `1px solid ${C.border}`,
-            background: C.surfaceAlt,
-            fontSize: 11,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: '#7b8697',
-          }}
-        >
-          <HeadCell>Category</HeadCell>
-          <HeadCell>Severity</HeadCell>
-          <HeadCell right>Total n</HeadCell>
-          <HeadCell right title="Ledger-side records / settlement-side records">Ldgr / Stl</HeadCell>
-          <HeadCell right>Sales</HeadCell>
-          <HeadCell right>Refunds</HeadCell>
-          <HeadCell right>Fees</HeadCell>
-          <HeadCell right title="Expected payout — sales − refunds − fees">Exp pay</HeadCell>
-          <HeadCell right>Settled</HeadCell>
-          <HeadCell right>Discrepancy</HeadCell>
+        <div role="row" style={headerRow(COLS, GAP)}>
+          <HeadCell style={cell('category')}>Category</HeadCell>
+          <HeadCell style={cell('severity')}>Severity</HeadCell>
+          <HeadCell style={cell('totalCount')}>Total n</HeadCell>
+          <HeadCell style={cell('sides')} title="Ledger-side records / settlement-side records">Ldgr / Stl</HeadCell>
+          <HeadCell style={cell('sales')}>Sales</HeadCell>
+          <HeadCell style={cell('refunds')}>Refunds</HeadCell>
+          <HeadCell style={cell('fees')}>Fees</HeadCell>
+          <HeadCell style={cell('expected')} title="Expected payout — sales − refunds − fees">Exp pay</HeadCell>
+          <HeadCell style={cell('settled')}>Settled</HeadCell>
+          <HeadCell style={cell('impact')}>Discrepancy</HeadCell>
         </div>
 
         {included.map(renderRow)}
 
-        <div
-          role="row"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: COLS,
-            gap: GAP,
-            padding: '11px 18px',
-            borderTop: `1px solid ${C.borderStrong}`,
-            background: C.surfaceAlt,
-            fontFamily: MONO,
-            fontVariantNumeric: 'tabular-nums',
-            fontWeight: 500,
-          }}
-        >
-          <span role="cell" style={{ textAlign: 'left', fontFamily: SANS }}>Total — included records only</span>
+        <div role="row" style={totalRow(COLS, GAP)}>
+          <span role="cell" style={totalLabel}>Total — included records only</span>
           <span role="cell" />
-          <Num color={INK}>{totals.totalCount}</Num>
-          <Num color={INK}>{totals.sides}</Num>
-          <Num color={INK}>{totals.sales}</Num>
-          <Num color={INK}>{totals.refunds}</Num>
-          <Num color={INK}>{totals.fees}</Num>
-          <Num color={INK}>{totals.expected}</Num>
-          <Num color={INK}>{totals.settled}</Num>
-          <Num color={discColor}>{totals.discrepancy}</Num>
+          <Num style={cell('totalCount')} color={INK}>{totals.totalCount}</Num>
+          <Num style={cell('sides')} color={INK}>{totals.sides}</Num>
+          <Num style={cell('sales')} color={INK}>{totals.sales}</Num>
+          <Num style={cell('refunds')} color={deductionColor(f.refunds)}>{totals.refunds}</Num>
+          <Num style={cell('fees')} color={deductionColor(f.fees)}>{totals.fees}</Num>
+          <Num style={cell('expected')} color={INK}>{totals.expected}</Num>
+          <Num style={cell('settled')} color={INK}>{totals.settled}</Num>
+          <Num style={cell('impact')} color={discColor(disc)}>{totals.discrepancy}</Num>
         </div>
 
         {/* Below the total, not above it: quarantined records are excluded from

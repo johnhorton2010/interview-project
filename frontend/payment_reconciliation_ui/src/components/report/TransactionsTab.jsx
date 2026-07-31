@@ -1,10 +1,12 @@
 import React, { useRef } from 'react';
 import { matchAll, refOf, figures, saleOf, refundOf } from '../../domain/selectors.js';
 import { getCategory } from '../../domain/categories.js';
-import { fmt, sfmt, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
-import { C, MONO, SANS, INK, INK2, NEG, POS, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
+import { fmt, sfmt, neg, dec, shortRefOf, downloadCsv } from '../../domain/format.js';
+import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
+import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
+import { SortHeader, EmptyState, TableFooter } from './TableParts.jsx';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -18,12 +20,12 @@ import BreakDetail from '../BreakDetail.jsx';
  * header row would confuse the surrounding `role="table"` semantics.
  */
 const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
-  <div style={{ padding: '8px 16px', background: '#f7f8fa', borderBottom: `1px solid ${C.borderSoft}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697' }}>
+  <div style={{ padding: `8px ${TABLE_INSET}px`, background: C.bandBg, borderBottom: `1px solid ${C.borderSoft}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: C.muted }}>
     {/* Optional: a band may carry only column labels, with no caption above them. */}
     {children && <div>{children}</div>}
     {labels && (
       // `data-col-labels` opts this line into useColumns' content measurement.
-      <div data-col-labels style={{ display: 'grid', gridTemplateColumns: template, gap, marginTop: children ? 6 : 0, color: '#9aa3b0' }}>
+      <div data-col-labels style={{ display: 'grid', gridTemplateColumns: template, gap, marginTop: children ? 6 : 0, color: C.dim }}>
         {/* Order comes from LSPEC, not from the label map's key order, so the two
             can never desync — the same positional coupling renderRow relies on. */}
         {LSPEC.map(({ key }) => (
@@ -40,15 +42,15 @@ const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
 // `disabled` it states an absence ("no settlement") — there is nothing to copy, so
 // it renders as plain text rather than offering a copy affordance that cannot work.
 const Subline = ({ text, label, display, onToggle, flash, note, disabled }) => (
-  <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px 7px', marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: '#7b8697', whiteSpace: 'nowrap' }}>
+  <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
     {disabled ? (
-      <span style={{ color: '#c2c8d2' }}>{display}</span>
+      <span style={{ color: C.disabled }}>{display}</span>
     ) : (
       <button type="button" title={`Copy ${label.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); copyText(text, label, flash); }} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'copy' }}>
         {display}
       </button>
     )}
-    {note && <span style={{ fontSize: 10, color: '#9aa3b0' }}>{note}</span>}
+    {note && <span style={{ fontSize: 10, color: C.dim }}>{note}</span>}
   </div>
 );
 
@@ -128,14 +130,21 @@ const SEARCH_TITLE =
 const str = (a, b) => String(a || '').localeCompare(String(b || ''));
 const num = (a, b) => (a === null ? 0 : a) - (b === null ? 0 : b);
 
+// Tooltips for the headers whose labels are abbreviated, matching the ones Summary
+// and Merchants give the same columns.
+const HEAD_TITLE = { expected: 'Expected payout — sales − refunds − fees' };
+
 function SortH({ label, k, tx, setTx, colStyle }) {
-  const active = tx.sortKey === k;
   const onClick = () => setTx((t) => (t.sortKey === k ? { ...t, sortKey: k, sortDir: t.sortDir === 'asc' ? 'desc' : 'asc' } : { ...t, sortKey: k, sortDir: NATURAL[k] }));
   return (
-    <button type="button" role="columnheader" aria-sort={active ? (tx.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} onClick={onClick} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', color: 'inherit', textTransform: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', ...colStyle }}>
-      {label}
-      {active ? (tx.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-    </button>
+    <SortHeader
+      label={label}
+      title={HEAD_TITLE[k]}
+      active={tx.sortKey === k}
+      dir={tx.sortDir}
+      onClick={onClick}
+      style={colStyle}
+    />
   );
 }
 
@@ -278,7 +287,6 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   };
 
   const catLabel = tx.cats.length === 0 ? 'All categories' : tx.cats.length === 1 ? getCategory(tx.cats[0]).label : `${tx.cats.length} categories`;
-  const impCol = (c) => (c === 0 ? INK2 : c < 0 ? NEG : POS);
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   const grandCount = plural(visibleRowCount, 'row');
@@ -302,8 +310,8 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     return (
       // Hover lives on the wrapper so the cells, the subline and the expanded
       // detail all tint together as one row (design lines 540/560, 643/663).
-      <HoverRow key={key} style={{ borderBottom: `1px solid ${C.rowRule}` }} hoverStyle={{ background: C.hover }}>
-        <div role="row" aria-expanded={open} onClick={toggle} style={{ display: 'grid', gridTemplateColumns: cols, gap: GAP, padding: '10px 16px', cursor: 'pointer', background: open ? C.hover : 'transparent', fontFamily: MONO, fontVariantNumeric: 'tabular-nums', alignItems: 'center' }}>
+      <HoverRow key={key} style={rowRule} hoverStyle={{ background: C.hover }}>
+        <div role="row" aria-expanded={open} onClick={toggle} style={{ ...bodyRow(cols, GAP), background: open ? C.hover : 'transparent', alignItems: 'center' }}>
           {/* Alignment and R5 padding come from the spec by position, so body cells
               can never drift out of step with the header row. */}
           {cells.map((c, i) =>
@@ -326,7 +334,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
   /** Category cell: severity swatch plus the label in row ink (design lines 553, 656). */
   const catCell = (category) => (
-    <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: SANS, fontSize: 12, minWidth: 0 }}>
+    <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: SANS, minWidth: 0 }}>
       <SevDot color={SEV_COLOR[getCategory(category).sev]} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(category).label}</span>
     </span>
@@ -340,10 +348,15 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   );
 
   const renderLedgerRow = (r) => {
-    // '—' not '$0.00' when nothing settled, matching BreaksTab. A row folding several
-    // payouts into this sum is flagged by the subline's ref count and by its category,
-    // so the figure itself carries no marker.
-    const settled = r.settlements.length ? fmt(r.rowActual) : '—';
+    // null, not 0, when nothing settled, matching BreaksTab: no fee or settlement data
+    // exists, which is distinct from either being genuinely zero. Fees follow Settled —
+    // a row with no payout was never charged, so both read as absent, not as zero. A row
+    // folding several payouts into this sum is flagged by the subline's ref count and by
+    // its category, so the figure itself carries no marker.
+    const actual = r.settlements.length ? r.rowActual : null;
+    const fees = r.settlements.length ? r.rowFees : null;
+    const captured = r.ledger ? r.ledger.capturedAt : 'no ledger';
+    const ref = r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—';
     const refs = r.settlements.map((x) => x.ref);
     const refDisplay = refs.length ? shortRefOf(refs[0]) + (refs.length > 1 ? ` +${refs.length - 1}` : '') : '';
     return renderRow(
@@ -353,17 +366,19 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         r.ledger
           ? idCell(r.ledger.id, r.ledger.id, 'Identifier')
           : idCell(shortRefOf(r.settlements[0].ref), r.settlements[0].ref, 'Network ref'),
-        cell(r.ledger ? r.ledger.capturedAt : 'no ledger', { color: INK2, size: 12 }),
+        // 'no ledger' is a textual absence, like the 'unsettled' marker the never-settled
+        // rows use in this same column, so it takes the absent ink rather than label ink.
+        cell(captured, { color: r.ledger ? INK2 : C.dim, size: 12 }),
         cell(r.merchantId, { color: INK2, size: 12 }),
-        cell(r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—', { color: INK2, size: 12 }),
-        cell(saleOf(r) === null ? '—' : fmt(saleOf(r)), { right: true }),
-        cell(refundOf(r) === null ? '—' : fmt(refundOf(r)), { right: true, color: refundOf(r) === null ? undefined : NEG }),
-        cell(fmt(r.rowFees), { right: true, color: INK2 }),
-        cell(fmt(r.rowExpected), { right: true }),
-        cell(settled, { right: true }),
-        cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
+        cell(ref, { color: labelColor(ref), size: 12 }),
+        cell(fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
+        cell(neg(refundOf(r)), { right: true, color: deductionColor(refundOf(r)) }),
+        cell(neg(fees), { right: true, color: deductionColor(fees) }),
+        cell(fmt(r.rowExpected), { right: true, color: figureColor(r.rowExpected) }),
+        cell(fmt(actual), { right: true, color: figureColor(actual) }),
+        cell(sfmt(r.rowImpact), { right: true, weight: 500, color: discColor(r.rowImpact) }),
         catCell(r.category),
-        cell(expanded === r.id ? '▴' : '▾', { right: true, color: '#9aa3b0', size: 11 }),
+        cell(expanded === r.id ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
       ],
       r,
       // Gated on the ledger side, not on refs (design: `hasRefSubline: !!r.ledger`).
@@ -387,26 +402,26 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
    * always had, while the subtotals sit under a softer one so the three read as a
    * hierarchy rather than three equal rows.
    */
-  const totalRow = (key, label, count, t, strong) => (
-    <div key={key} role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '11px 16px', borderTop: `1px solid ${strong ? C.borderStrong : C.borderSoft}`, background: C.surfaceAlt, fontFamily: MONO, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
-      <span role="cell" style={{ fontFamily: SANS, fontSize: 12, fontWeight: strong ? 600 : 400 }}>{label}</span>
+  const summaryRow = (key, label, count, t, strong) => (
+    <div key={key} role="row" style={totalRow(COLS, GAP, strong)}>
+      <span role="cell" style={{ ...totalLabel, fontWeight: strong ? 600 : 400 }}>{label}</span>
       <span /><span />
       {/* Merchant ref is the last text column before the measure block, so the count
           goes there in both views — it is the only slot left that is not money. */}
-      <span role="cell" style={{ fontFamily: SANS, fontSize: 12, color: INK2 }}>{count}</span>
-      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.sales)}</span>
-      <span role="cell" style={{ textAlign: 'right', color: t.refunds === 0 ? undefined : NEG }}>{fmt(t.refunds)}</span>
-      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.fees)}</span>
-      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.expected)}</span>
-      <span role="cell" style={{ textAlign: 'right' }}>{fmt(t.settled)}</span>
-      <span role="cell" style={{ textAlign: 'right', color: impCol(t.impact) }}>{sfmt(t.impact)}</span>
+      <span role="cell" style={{ ...totalLabel, color: INK2 }}>{count}</span>
+      <span role="cell" style={{ textAlign: 'right', color: figureColor(t.sales) }}>{fmt(t.sales)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: deductionColor(t.refunds) }}>{neg(t.refunds)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: deductionColor(t.fees) }}>{neg(t.fees)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: figureColor(t.expected) }}>{fmt(t.expected)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: figureColor(t.settled) }}>{fmt(t.settled)}</span>
+      <span role="cell" style={{ textAlign: 'right', color: discColor(t.impact) }}>{sfmt(t.impact)}</span>
       <span /><span />
     </div>
   );
 
   return (
     <section>
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <input type="search" value={tx.query} onChange={(e) => setTx((t) => ({ ...t, query: e.target.value }))} placeholder="Search id, merchant, ref, amount, or date — e.g. captured:2026-06-01..2026-06-05" title={SEARCH_TITLE} style={{ flex: 1, minWidth: 220, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK }} />
         <SearchHelp
           open={tx.helpOpen}
@@ -415,7 +430,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           align="left"
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: '#9aa3b0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>View</span>
+          <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>View</span>
           <SegGroup
             options={[
               { label: 'Ledger', on: !settleCentric, title: 'One row per internal ledger transaction', onClick: () => setTx((t) => ({ ...t, view: 'ledger' })) },
@@ -424,12 +439,12 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           />
         </div>
         <div ref={catMenuRef} style={{ position: 'relative' }}>
-          <button type="button" aria-expanded={tx.catOpen} onClick={() => setTx((t) => ({ ...t, catOpen: !t.catOpen }))} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${tx.cats.length ? '#bcd0f5' : C.border}`, background: tx.cats.length ? '#eaf0fd' : '#fff', color: tx.cats.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <button type="button" aria-expanded={tx.catOpen} onClick={() => setTx((t) => ({ ...t, catOpen: !t.catOpen }))} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${tx.cats.length ? '#bcd0f5' : C.border}`, background: tx.cats.length ? '#eaf0fd' : C.surface, color: tx.cats.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <span>{catLabel}</span>
-            <span aria-hidden="true" style={{ color: '#9aa3b0', fontSize: 10 }}>▾</span>
+            <span aria-hidden="true" style={{ color: C.dim, fontSize: 10 }}>▾</span>
           </button>
           {tx.catOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 30, width: 272, background: '#fff', border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 30, width: 272, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
               {catOptions.map((k) => {
                 const on = tx.cats.includes(k);
                 return (
@@ -439,7 +454,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                       <SevDot color={SEV_COLOR[getCategory(k).sev]} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(k).label}</span>
                     </span>
-                    <span style={{ fontFamily: MONO, fontSize: 11, color: '#9aa3b0' }}>{catCounts[k]}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.dim }}>{catCounts[k]}</span>
                   </label>
                 );
               })}
@@ -451,7 +466,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: '#9aa3b0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Type</span>
+          <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Type</span>
           <SegGroup
             options={[
               { label: 'All', on: tx.type === 'all', onClick: () => setTx((t) => ({ ...t, type: 'all' })) },
@@ -469,7 +484,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
       {/* No overflow container here: it would trap the sticky column header inside
           its own scroll box. */}
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px', minWidth: 0 }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px', minWidth: 0 }}>
         {/* The design ships two separate tables with distinct names; keep them
             distinguishable to assistive tech even though we render one wrapper. */}
         <div
@@ -480,7 +495,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         >
           {settleCentric ? (
             <>
-              <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697', position: 'sticky', top: 56, zIndex: 5 }}>
+              <div role="row" style={headerRow(COLS, GAP, true)}>
                 <SortH label={L.id} k="id" tx={tx} setTx={setTx} colStyle={col('id')} />
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
@@ -494,7 +509,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
                 <span role="columnheader" />
               </div>
-              {settleRows.length === 0 && neverSettled.length === 0 && <div style={{ padding: '26px 16px', color: '#9aa3b0' }}>No settlements match.</div>}
+              {settleRows.length === 0 && neverSettled.length === 0 && <EmptyState>No settlements match.</EmptyState>}
               {settleRows.map((o) => {
                 const idx = o.r.settlements.indexOf(o.x);
                 const carrier = carrierOf[o.r.id] === idx + 1;
@@ -507,29 +522,31 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                   : `Same ledger transaction — sales, refunds, expected pay and discrepancy are shown on part ${carrierOf[o.r.id]} of ${parts}`;
                 // Carried cell: the figure on the carrier row, 〃 on every later part.
                 const carried = (content, color) =>
-                  cell(carrier ? content : '〃', { right: true, color: carrier ? color || INK : '#9aa3b0', title: inheritTitle });
+                  cell(carrier ? content : '〃', { right: true, color: carrier ? color || INK : C.dim, title: inheritTitle });
                 return renderRow(
                   o.x.ref,
                   COLS,
                   [
                     idCell(shortRefOf(o.x.ref), o.x.ref, 'Network ref'),
-                    cell(o.x.date, { color: INK2, size: 12 }),
+                    cell(o.x.date, { color: labelColor(o.x.date), size: 12 }),
                     cell(o.x.merchantId, { color: INK2, size: 12 }),
-                    cell(o.x.merchantRef || '—', { color: INK2, size: 12 }),
-                    carried(saleOf(o.r) === null ? '—' : fmt(saleOf(o.r))),
-                    carried(refundOf(o.r) === null ? '—' : fmt(refundOf(o.r)), refundOf(o.r) === null ? undefined : NEG),
-                    cell(feesOf(o.x) === 0 ? '—' : fmt(feesOf(o.x)), { right: true, color: INK2 }),
-                    carried(fmt(o.r.rowExpected)),
-                    cell(fmt(o.x.settled), { right: true }),
-                    cell(carrier ? sfmt(o.r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? impCol(o.r.rowImpact) : '#9aa3b0', title: inheritTitle }),
+                    cell(o.x.merchantRef || '—', { color: labelColor(o.x.merchantRef), size: 12 }),
+                    carried(fmt(saleOf(o.r)), figureColor(saleOf(o.r))),
+                    carried(neg(refundOf(o.r)), deductionColor(refundOf(o.r))),
+                    // Fees are per-payout, so this cell is never carried — a settlement
+                    // that deducted nothing shows $0.00, not the dash that means "no data".
+                    cell(neg(feesOf(o.x)), { right: true, color: deductionColor(feesOf(o.x)) }),
+                    carried(fmt(o.r.rowExpected), figureColor(o.r.rowExpected)),
+                    cell(fmt(o.x.settled), { right: true, color: figureColor(o.x.settled) }),
+                    cell(carrier ? sfmt(o.r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? discColor(o.r.rowImpact) : C.dim, title: inheritTitle }),
                     catCell(o.r.category),
-                    cell(expanded === o.x.ref ? '▴' : '▾', { right: true, color: '#9aa3b0', size: 11 }),
+                    cell(expanded === o.x.ref ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
                   ],
                   o.r,
                   o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} note={parts > 1 ? `part ${idx + 1} of ${parts}` : null} /> : null,
                 );
               })}
-              {split && totalRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totalsOf(sec1), false)}
+              {split && summaryRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totalsOf(sec1), false)}
               {neverSettled.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} template={COLS} gap={GAP} col={col}>
                   Never settled — ledger transactions with no payout
@@ -543,18 +560,19 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                     // No network ref exists for this row, so the id column carries the
                     // ledger txn id — its only identifier — rather than a bare dash.
                     idCell(r.ledger.id, r.ledger.id, 'Identifier'),
-                    cell('unsettled', { color: '#9aa3b0', sans: true, size: 12 }),
+                    cell('unsettled', { color: C.dim, sans: true, size: 12 }),
                     cell(r.merchantId, { color: INK2, size: 12 }),
-                    cell(r.ledger.merchantRef || '—', { color: INK2, size: 12 }),
-                    cell(saleOf(r) === null ? '—' : fmt(saleOf(r)), { right: true }),
-                    cell(refundOf(r) === null ? '—' : fmt(refundOf(r)), { right: true, color: refundOf(r) === null ? undefined : NEG }),
-                    // No payout, so no fees were ever deducted — expected pay is the gross.
-                    cell('—', { right: true, color: '#9aa3b0' }),
-                    cell(fmt(r.rowExpected), { right: true }),
-                    cell('—', { right: true, color: '#9aa3b0' }),
-                    cell(sfmt(r.rowImpact), { right: true, weight: 500, color: impCol(r.rowImpact) }),
+                    cell(r.ledger.merchantRef || '—', { color: labelColor(r.ledger.merchantRef), size: 12 }),
+                    cell(fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
+                    cell(neg(refundOf(r)), { right: true, color: deductionColor(refundOf(r)) }),
+                    // No payout, so no fees were ever deducted and nothing was settled. Both
+                    // read as absent rather than zero — expected pay is the gross.
+                    cell(neg(null), { right: true, color: deductionColor(null) }),
+                    cell(fmt(r.rowExpected), { right: true, color: figureColor(r.rowExpected) }),
+                    cell(fmt(null), { right: true, color: figureColor(null) }),
+                    cell(sfmt(r.rowImpact), { right: true, weight: 500, color: discColor(r.rowImpact) }),
                     catCell(r.category),
-                    cell(expanded === r.id ? '▴' : '▾', { right: true, color: '#9aa3b0', size: 11 }),
+                    cell(expanded === r.id ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
                   ],
                   r,
                   // The txn id now sits in the id cell above, so a subline would repeat it.
@@ -562,11 +580,11 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 ),
               )}
               {/* "rows", not "settlements": these are the ones with no payout at all. */}
-              {split && totalRow('sub-never', 'Subtotal', plural(neverSettled.length, 'row'), totalsOf(sec2), false)}
+              {split && summaryRow('sub-never', 'Subtotal', plural(neverSettled.length, 'row'), totalsOf(sec2), false)}
             </>
           ) : (
             <>
-              <div role="row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: GAP, padding: '9px 16px', borderBottom: `1px solid ${C.border}`, background: C.surfaceAlt, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7b8697', position: 'sticky', top: 56, zIndex: 5 }}>
+              <div role="row" style={headerRow(COLS, GAP, true)}>
                 <SortH label={L.id} k="id" tx={tx} setTx={setTx} colStyle={col('id')} />
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} colStyle={col('merchant')} />
@@ -580,16 +598,16 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 <SortH label={L.category} k="category" tx={tx} setTx={setTx} colStyle={col('category')} />
                 <span role="columnheader" />
               </div>
-              {ledgerRows.length === 0 && orphanRows.length === 0 && <div style={{ padding: '26px 16px', color: '#9aa3b0' }}>No transactions match.</div>}
+              {ledgerRows.length === 0 && orphanRows.length === 0 && <EmptyState>No transactions match.</EmptyState>}
               {ledgerRows.map(renderLedgerRow)}
-              {split && totalRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totalsOf(sec1), false)}
+              {split && summaryRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totalsOf(sec1), false)}
               {orphanRows.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} template={COLS} gap={GAP} col={col}>
                   Unattributed settlements — no ledger side
                 </SectionHeader>
               )}
               {orphanRows.map(renderLedgerRow)}
-              {split && totalRow('sub-orphan', 'Subtotal', plural(orphanRows.length, 'row'), totalsOf(sec2), false)}
+              {split && summaryRow('sub-orphan', 'Subtotal', plural(orphanRows.length, 'row'), totalsOf(sec2), false)}
             </>
           )}
 
@@ -597,7 +615,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
               stack as one block, and re-states the columns at the point furthest from the
               sticky header. Default labels, no override: this total covers every row. */}
           {split && <SectionHeader labels={grandBandLabels} template={COLS} gap={GAP} col={col} />}
-          {totalRow(
+          {summaryRow(
             'grand',
             'Grand total',
             grandCount,
@@ -605,10 +623,13 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
             true,
           )}
         </div>
-        <div style={{ padding: '11px 16px', borderTop: `1px solid ${C.borderSoft}`, background: C.surfaceAlt, borderRadius: '0 0 8px 8px', fontSize: 11, color: tieOk ? '#9aa3b0' : NEG, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>{tieNote}</span>
-          <span style={{ color: '#9aa3b0', textWrap: 'pretty' }}>{footnote}</span>
-        </div>
+        {/* The tie-out note is the one piece of chrome that turns red: it does so when the
+            visible impact stops matching the headline discrepancy, which is a report bug. */}
+        <TableFooter
+          style={{ borderRadius: '0 0 8px 8px', ...(tieOk ? null : { color: NEG }) }}
+          left={tieNote}
+          right={<span style={{ color: C.dim, textWrap: 'pretty' }}>{footnote}</span>}
+        />
       </div>
     </section>
   );

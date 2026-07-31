@@ -69,13 +69,19 @@ src/
                 normalize.js   three-map payload → flat ReconRow[] (PRD §6)
                 selectors.js   every figure: headline, category, merchant, search
                 detail.js      two-sided break-detail view model
+                quarantine.js  why a record was withheld, and which field failed
                 categories.js  category label/severity/copy
                 format.js      currency/date/CSV helpers
   components/   React UI (inline styles ported from the design)
-                ImportZone, ResetModal, BreakDetail, common
-                report/        Report, CategoryTable, MerchantTable,
-                               BreaksTab, TransactionsTab, QuarantineTab
-  styles/       tokens.js (colors/fonts), global.css
+                ImportZone, ResetModal, BreakDetail, QuarantineDetail,
+                DetailPanels, common
+                report/        Report, CategoryTable, MerchantTable, BreaksTab,
+                               TransactionsTab, QuarantineTab, TableParts,
+                               SearchHelp
+  styles/       tokens.js      colors, fonts, severity encoding
+                columns.js     one grid template per table, so every row lines up
+                table.js       row chrome + the value→ink rules
+                global.css     resets and keyframes
   test/         golden fixtures + the sample-payload builder
 ```
 

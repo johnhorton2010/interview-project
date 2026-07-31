@@ -3,10 +3,8 @@
 // Ported from the design component's figures()/categoryRows/merchantRows/matchRow.
 
 import { getCategory } from './categories.js';
-import { fmt, sfmt, normAmt, amtStrings, dateMatches, isDateish } from './format.js';
-import { C, INK, INK2, NEG, POS, SEV_ORDER, SEV_COLOR, SEV_BG, SEV_BORDER } from '../styles/tokens.js';
-
-const DIM = '#9aa3b0';
+import { fmt, sfmt, neg, normAmt, amtStrings, dateMatches, isDateish } from './format.js';
+import { C, INK2, SEV_ORDER, SEV_COLOR, SEV_BG, SEV_BORDER } from '../styles/tokens.js';
 
 const isSale = (l) => l.type === 'SALE';
 const isRefund = (l) => l.type === 'REFUND';
@@ -93,30 +91,30 @@ export function categorySummary(model) {
       settleCount: ss.length,
       totalCount: isQuar ? ls.length + ss.length : rs.length,
       sides: ls.length + ' / ' + ss.length,
-      dimColor: isQuar ? DIM : INK2,
       // An excluded row is muted by a background band plus one flat ink, never by opacity:
       // opacity composites every cell toward the background and bottoms out at 1.61:1.
       // The band carries the de-emphasis, so the ink can stay dark enough to read —
       // INK2 on borderSoft is 6.45:1. `rowInk` overrides every cell colour below when set.
       // (borderSoft is named for a border; here it is deliberately a row fill.)
       rowInk: isQuar ? INK2 : null,
-      bg: isQuar ? C.borderSoft : '#ffffff',
+      bg: isQuar ? C.borderSoft : C.surface,
       // Every monetary cell on the excluded row reads N/A, not just expected and impact:
       // quarantined records are absent from all of them, so printing a real figure under
       // Sales or Settled invites adding it into a total it is deliberately outside of.
       // Only the display strings are blanked — `raw*` below keeps the underlying amounts,
       // and the Quarantine tab still lists each record's own figure.
-      sales: isQuar ? 'N/A' : rawSales === 0 ? '—' : fmt(rawSales),
-      salesColor: ls.some(isSale) ? INK : DIM,
-      refunds: isQuar ? 'N/A' : rawRefunds === 0 ? '—' : '−' + fmt(rawRefunds),
-      refundColor: ls.some(isRefund) ? NEG : DIM,
-      fees: isQuar ? 'N/A' : rawFees === 0 ? '—' : '−' + fmt(rawFees),
-      feeColor: ss.some((x) => (x.interchange || 0) + (x.processor || 0) !== 0) ? NEG : DIM,
+      //
+      // A zero reads '$0.00', not '—': the dash is reserved for a value that does not
+      // exist, which is the sense the other three tabs give it. Nor is a zero dimmed —
+      // it is a measured fact, and it reads at the same weight under Refunds as under
+      // Sales. Ink comes from the helpers in styles/table.js, where colour carries sign
+      // and the lighter ink is reserved for an absence this table never prints.
+      sales: isQuar ? 'N/A' : fmt(rawSales),
+      refunds: isQuar ? 'N/A' : neg(rawRefunds),
+      fees: isQuar ? 'N/A' : neg(rawFees),
       expected: isQuar ? 'N/A' : fmt(rawSales - rawRefunds - rawFees),
-      settled: isQuar ? 'N/A' : rawSettled === 0 ? '—' : fmt(rawSettled),
-      settledColor: ss.length ? INK : DIM,
+      settled: isQuar ? 'N/A' : fmt(rawSettled),
       impact: isQuar ? 'N/A' : sfmt(rawImpact),
-      impactColor: isQuar ? DIM : rawImpact === 0 ? INK2 : rawImpact < 0 ? NEG : POS,
     };
   });
 
@@ -128,8 +126,8 @@ export function categorySummary(model) {
     sides: f.includedLedger + ' / ' + f.includedSettle,
     sales: fmt(f.sales),
     ledgerGross: fmt(f.ledgerGrossSigned),
-    refunds: '−' + fmt(f.refunds),
-    fees: '−' + fmt(f.fees),
+    refunds: neg(f.refunds),
+    fees: neg(f.fees),
     expected: fmt(f.expected),
     settled: fmt(f.actual),
     discrepancy: sfmt(f.discrepancy),
@@ -185,16 +183,18 @@ export function merchantRollup(model) {
         merchantId: id,
         raw: { sales, refunds, interchange, processor, fees, expected, settled, disc, clean, breaks: brk, quar, quarantineOnly },
         sales: quarantineOnly ? na : fmt(sales),
-        refunds: quarantineOnly ? na : fmt(refunds),
-        interchange: quarantineOnly ? na : fmt(interchange),
-        processor: quarantineOnly ? na : fmt(processor),
-        fees: quarantineOnly ? na : fmt(fees),
+        // The four deductions print signed, matching the CSV this table exports and the
+        // way Summary, Breaks and Transactions render the same figures. With the signs on
+        // screen, SALES + REFUNDS + FEES = EXP PAY reads straight across the row.
+        refunds: quarantineOnly ? na : neg(refunds),
+        interchange: quarantineOnly ? na : neg(interchange),
+        processor: quarantineOnly ? na : neg(processor),
+        fees: quarantineOnly ? na : neg(fees),
         expected: quarantineOnly ? na : fmt(expected),
         settled: quarantineOnly ? na : fmt(settled),
         discrepancy: quarantineOnly ? na : sfmt(disc),
         // No row-level mute on this table: the N/A cells say "contributes nothing" more
         // plainly than a colour treatment would, so every N/A renders in normal ink.
-        discColor: quarantineOnly ? INK : disc === 0 ? INK2 : disc < 0 ? NEG : POS,
         // The three counts carry no colour of their own: greying a zero put it at 2.55:1,
         // and using a lighter ink for Quarantine than for Breaks drew a distinction the
         // data does not make. They all render in row ink, so the Total row matches too.
