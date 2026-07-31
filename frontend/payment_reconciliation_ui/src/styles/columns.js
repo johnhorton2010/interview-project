@@ -34,6 +34,21 @@ const MAX_SLACK = 64;
 
 const clamp = (lo, v, hi) => Math.max(lo, Math.min(v, hi));
 
+/**
+ * Text that sizes a column — the mirror of the `data-col-labels` opt-in above.
+ *
+ * `data-col-ignore` marks decoration: a marker or badge that rides along inside a cell
+ * but must not widen that column on every row for the sake of the few rows carrying it.
+ * The trade is that such an element gets no width reserved for it, so it has to live in
+ * the slack or spill into the gutter — its cell needs `overflow: visible` to do the
+ * latter, since the gutter is the only space it can borrow.
+ */
+function sizingText(node) {
+  if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+  if (node.dataset && 'colIgnore' in node.dataset) return '';
+  return [...node.childNodes].map(sizingText).join('');
+}
+
 /** Widest rendered content per column, measured off-layout with a canvas. */
 function measureContent(root, count) {
   const canvas = measureContent.canvas || (measureContent.canvas = document.createElement('canvas'));
@@ -44,7 +59,7 @@ function measureContent(root, count) {
       if (i >= count) return;
       const s = getComputedStyle(cellEl);
       ctx.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
-      const text = cellEl.textContent.trim();
+      const text = sizingText(cellEl).trim();
       let w = ctx.measureText(text).width;
       // Canvas ignores letter-spacing, which the uppercase headers rely on.
       const ls = parseFloat(s.letterSpacing);

@@ -41,7 +41,11 @@ const SectionHeader = ({ children, labels, overrides, template, gap, col }) => (
 // Subline under a transaction row, matching the design (mono, 11px, muted). When
 // `disabled` it states an absence ("no settlement") — there is nothing to copy, so
 // it renders as plain text rather than offering a copy affordance that cannot work.
-const Subline = ({ text, label, display, onToggle, flash, note, disabled }) => (
+//
+// Deliberately one item. useColumns measures only [role="row"] cells, so nothing
+// down here can widen the column it sits under — a second item just overflows into
+// the next one. Anything that needs to sit beside a value belongs in the row.
+const Subline = ({ text, label, display, onToggle, flash, disabled }) => (
   <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
     {disabled ? (
       <span style={{ color: C.disabled }}>{display}</span>
@@ -50,7 +54,6 @@ const Subline = ({ text, label, display, onToggle, flash, note, disabled }) => (
         {display}
       </button>
     )}
-    {note && <span style={{ fontSize: 10, color: C.dim }}>{note}</span>}
   </div>
 );
 
@@ -340,10 +343,27 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     </span>
   );
 
-  /** Identifier cell: click-to-copy, matching the design's `onCopyId` buttons. */
-  const idCell = (display, text, label) => (
-    <span role="cell" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+  /**
+   * Identifier cell: click-to-copy, matching the design's `onCopyId` buttons, plus an
+   * optional "which payout of how many" marker.
+   *
+   * The marker is a sibling of the button, not its content: it is not part of the ref,
+   * and `copyText` must keep copying the bare identifier.
+   *
+   * `data-col-ignore` keeps it out of useColumns' measurement, so two rows in twenty do
+   * not widen this column for all of them. In exchange it gets no reserved width, so the
+   * cell drops `overflow: hidden` to let it use the gutter. That is bounded: even at the
+   * slack floor the marker spills ~7px into a 16px gap, so it cannot reach the next
+   * column. Cells without a marker keep the clip, and with it the ellipsis on long ids.
+   */
+  const idCell = (display, text, label, part) => (
+    <span role="cell" style={{ overflow: part ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
       <CopyButton text={text} label={label} display={display} flash={flash} />
+      {part && (
+        <span data-col-ignore style={{ marginLeft: 6, fontSize: 10, color: C.dim }} title={`Payout ${part} of this transaction`}>
+          {part}
+        </span>
+      )}
     </span>
   );
 
@@ -527,7 +547,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                   o.x.ref,
                   COLS,
                   [
-                    idCell(shortRefOf(o.x.ref), o.x.ref, 'Network ref'),
+                    idCell(shortRefOf(o.x.ref), o.x.ref, 'Network ref', parts > 1 ? `${idx + 1}/${parts}` : null),
                     cell(o.x.date, { color: labelColor(o.x.date), size: 12 }),
                     cell(o.x.merchantId, { color: INK2, size: 12 }),
                     cell(o.x.merchantRef || '—', { color: labelColor(o.x.merchantRef), size: 12 }),
@@ -543,7 +563,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                     cell(expanded === o.x.ref ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
                   ],
                   o.r,
-                  o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} note={parts > 1 ? `part ${idx + 1} of ${parts}` : null} /> : null,
+                  o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} /> : null,
                 );
               })}
               {split && summaryRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totalsOf(sec1), false)}
