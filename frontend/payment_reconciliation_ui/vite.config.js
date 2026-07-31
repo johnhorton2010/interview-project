@@ -19,5 +19,17 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.js'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{js,jsx}'],
+      exclude: [
+        'src/**/*.test.js',
+        'src/test/**',          // fixtures + sample-payload builder
+        'src/main.jsx',         // React mount entrypoint
+        'src/styles/tokens.js', // static token maps
+      ],
+    },
   },
 });

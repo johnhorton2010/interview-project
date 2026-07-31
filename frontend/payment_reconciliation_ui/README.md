@@ -40,6 +40,7 @@ Re-dropping the same file reports `0 new or updated, N unchanged` (idempotency p
 
 ```bash
 npm test           # Vitest: money + normalisation + selector golden figures
+npm run test:coverage   # same tests + V8 coverage report (terminal + coverage/index.html)
 ```
 
 The domain tests assert the exact figures from the sample dataset (expected payout
