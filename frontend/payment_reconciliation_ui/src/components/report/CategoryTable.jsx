@@ -5,7 +5,7 @@ import { C, SANS, INK, INK2 } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton } from '../common.jsx';
-import { HeadCell, Num } from './TableParts.jsx';
+import { HeadCell, Num, TableFooter, GlyphKey } from './TableParts.jsx';
 
 const SPEC = [
   { key: 'category', min: 120 },
@@ -165,6 +165,10 @@ export default function CategoryTable({ model, nav, flash }) {
             every figure in that row, and position says so more plainly than a label. */}
         {quarantined && renderRow(quarantined)}
       </div>
+
+      {/* Every figure here is a real number or N/A — no dash is reachable, so the key
+          names only what this table can print. */}
+      <TableFooter legend={<GlyphKey keys={['na']} />} />
     </section>
   );
 }

@@ -6,7 +6,7 @@ import { C, MONO, SANS, INK, INK2, ACCENT, SEV_ORDER, SEV_COLOR } from '../../st
 import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, copyText, FilterStrip } from '../common.jsx';
-import { SortHeader, EmptyState, TableFooter } from './TableParts.jsx';
+import { SortHeader, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -355,6 +355,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
           style={{ borderRadius: '0 0 8px 8px' }}
           left={`${filtered.length} of ${breaks.length} breaks · sorted by ${sortLabel}`}
           right={<span style={{ fontFamily: MONO }}>{deepLink}</span>}
+          legend={<GlyphKey keys={['dash', 'zero']} />}
         />
       </div>
     </section>

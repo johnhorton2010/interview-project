@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { figureColor, deductionColor, discColor, labelColor } from './table.js';
 import { C, INK, INK2, NEG, POS } from './tokens.js';
 import { neg, fmt, sfmt } from '../domain/format.js';
+import { GLYPH } from '../components/report/TableParts.jsx';
 
 // These four helpers are the report's entire visual grammar: every money cell on every
 // tab derives its ink from one of them. The invariant they exist to hold is
@@ -86,6 +87,13 @@ describe('the ink rule holds against what the formatters actually print', () => 
     ['refunds/fees', neg, deductionColor],
     ['discrepancy', sfmt, discColor],
   ];
+
+  // The footers' symbol key promises the reader specific glyphs. If a formatter ever
+  // changes what it prints, the key silently starts lying — so pin the two together.
+  it('the key defines exactly the glyphs the formatters print', () => {
+    for (const render of [fmt, neg, sfmt]) expect(render(null)).toBe(GLYPH.dash[0]);
+    for (const render of [fmt, neg]) expect(render(0)).toBe(GLYPH.zero[0]);
+  });
 
   it.each(cases)('%s: a dash is the only thing that gets the absent ink', (_label, render, ink) => {
     expect(render(null)).toBe('—');

@@ -76,16 +76,16 @@ export const totalRow = (template, gap, strong = true) => ({
 /** Label cell in a summary row — prose, so it leaves the row's mono. */
 export const totalLabel = { fontFamily: SANS, fontSize: 12, whiteSpace: 'nowrap' };
 
-/** Footer bar under a table: counts, sort state, caveats. */
+/**
+ * Footer bar under a table: counts, sort state, caveats, symbol key. A block, not a
+ * row — `TableFooter` stacks a notes line above the key, so it owns the inner layout.
+ */
 export const footerBar = {
   padding: pad(11),
   borderTop: `1px solid ${C.borderSoft}`,
   background: C.surfaceAlt,
   fontSize: 11,
   color: C.dim,
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 12,
 };
 
 /** "Nothing matched" placeholder, sitting where a row would. */

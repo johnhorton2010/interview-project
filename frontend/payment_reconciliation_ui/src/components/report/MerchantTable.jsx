@@ -5,7 +5,7 @@ import { C, INK } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, GhostButton, SegGroup, FilterStrip } from '../common.jsx';
-import { HeadCell, Num, EmptyState } from './TableParts.jsx';
+import { HeadCell, Num, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 
 const SPEC = [
   { key: 'merchant', min: 72 },
@@ -174,9 +174,10 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
           <Num style={cell('quarantine')} color={INK}>{t.quar}</Num>
         </div>
       </div>
-      <p style={{ margin: 0, padding: '12px 18px', borderTop: `1px solid ${C.borderSoft}`, fontSize: 11, color: C.dim, textWrap: 'pretty' }}>
-        Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy. A merchant whose records are all quarantined reads N/A across those columns.
-      </p>
+      <TableFooter
+        left={<span style={{ textWrap: 'pretty' }}>Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy. A merchant whose records are all quarantined reads N/A across those columns.</span>}
+        legend={<GlyphKey keys={['na']} />}
+      />
     </section>
   );
 }

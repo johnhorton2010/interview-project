@@ -6,7 +6,7 @@ import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_ORDER, SEV_COLOR } from '../
 import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
-import { SortHeader, EmptyState, TableFooter } from './TableParts.jsx';
+import { SortHeader, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 import SearchHelp from './SearchHelp.jsx';
 import BreakDetail from '../BreakDetail.jsx';
 
@@ -263,8 +263,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         : `All ${visibleRowCount} included rows — impact sums to ${sfmt(txImpact)}, matching the headline discrepancy`
       : `Impact sums to ${sfmt(txImpact)} but the headline discrepancy is ${sfmt(f.discrepancy)} — the report has a bug`
     : `Filtered view — totals cover the ${visibleRowCount} visible rows, not the full dataset`;
+  // The key below states what 〃 means; this says which figures it carries and why they
+  // are counted once, which is more than a key can hold.
   const footnote = settleCentric
-    ? '〃 repeats the sales, refunds, expected pay and discrepancy printed on the row above for the same ledger transaction — those figures belong to the transaction, not to each payout, so they are counted once. Quarantined records are excluded; see the Quarantine tab.'
+    ? 'Sales, refunds, expected pay and discrepancy belong to the transaction, not to each payout, so a transaction that settled in parts prints them once. Quarantined records are excluded; see the Quarantine tab.'
     : 'Quarantined records are excluded — see the Quarantine tab.';
 
   const exportCsv = () => {
@@ -645,10 +647,13 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         </div>
         {/* The tie-out note is the one piece of chrome that turns red: it does so when the
             visible impact stops matching the headline discrepancy, which is a report bug. */}
+        {/* 〃 is listed in both views though only settlement can produce one: the key
+            describes the tab, so toggling View does not shift the footer under you. */}
         <TableFooter
           style={{ borderRadius: '0 0 8px 8px', ...(tieOk ? null : { color: NEG }) }}
           left={tieNote}
           right={<span style={{ color: C.dim, textWrap: 'pretty' }}>{footnote}</span>}
+          legend={<GlyphKey keys={['dash', 'zero', 'ditto']} />}
         />
       </div>
     </section>

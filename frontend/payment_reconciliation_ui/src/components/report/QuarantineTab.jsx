@@ -5,7 +5,7 @@ import { C, SANS, INK, INK2 } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { bodyRow, headerRow, rowRule, figureColor } from '../../styles/table.js';
 import { GhostButton, HoverRow } from '../common.jsx';
-import { EmptyState } from './TableParts.jsx';
+import { EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
 import QuarantineDetail from '../QuarantineDetail.jsx';
 
 // `reason` follows a right-aligned column, so useColumns pads it automatically to
@@ -91,6 +91,10 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
           );
         })}
       </div>
+
+      {/* The clearest place in the report to state the pair: a record withheld for a
+          zero-value amount reads $0.00, one withheld for an omitted amount reads —. */}
+      <TableFooter legend={<GlyphKey keys={['dash', 'zero']} />} />
     </section>
   );
 }
