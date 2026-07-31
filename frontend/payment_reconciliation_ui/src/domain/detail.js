@@ -40,7 +40,6 @@ function mrow(label, value, opts = {}) {
 function ledgerFieldsOf(r) {
   const l = r.ledger;
   if (!l) return [];
-  const amtDiff = r.rowImpact !== 0;
   return [
     fieldRow('Internal txn ID', l.id, true, false),
     fieldRow('Merchant ID', l.merchantId, true, false),
@@ -51,9 +50,9 @@ function ledgerFieldsOf(r) {
       false,
       r.settlements.some((s) => s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4),
     ),
-    fieldRow('Gross amount', fmt(l.gross), true, amtDiff),
+    fieldRow('Gross amount', fmt(l.gross), true, l.category === 'FEE_DISCREPANCY' || l.category === 'AMOUNT_MISMATCH'),
     fieldRow('Type', l.type === 'SALE' ? 'Sale' : 'Refund', false, false),
-    fieldRow('Captured', l.capturedAt, true, false),
+    fieldRow('Captured', l.capturedAt, true, l.category === 'WIDE_WINDOW'),
     fieldRow('Currency', l.currency, false, r.settlements.some((s) => s.currency !== l.currency)),
   ];
 }
@@ -61,16 +60,16 @@ function ledgerFieldsOf(r) {
 /** Processor-side card(s) for a row (empty when nothing settled). */
 function settlementCardsOf(r) {
   const l = r.ledger;
-  const amtDiff = r.rowImpact !== 0;
   return r.settlements.map((s, i) => ({
     badge: r.settlements.length > 1 ? `${i + 1} of ${r.settlements.length}` : s.date,
     fields: [
       fieldRow('Network ref', s.ref, true, false),
+      fieldRow('Merchant ID', r.merchantId, true, false),
       fieldRow('Merchant ref', s.merchantRef || '—', true, !!l && s.merchantRef !== l.merchantRef),
       fieldRow('Card', s.cardType + ' ····' + s.cardLast4, false, !!l && (s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4)),
-      fieldRow('Settled amount', fmt(s.settled), true, amtDiff),
-      fieldRow('Interchange fee', fmt(s.interchange), true, r.category === 'FEE_DISCREPANCY'),
-      fieldRow('Processor fee', fmt(s.processor), true, r.category === 'FEE_DISCREPANCY'),
+      fieldRow('Settled amount', fmt(s.settled), true, r.category === 'FEE_DISCREPANCY' || r.category === 'AMOUNT_MISMATCH'),
+      fieldRow('Interchange fee', fmt(s.interchange), true, r.category === 'FEE_DISCREPANCY' || r.category === 'AMOUNT_MISMATCH'),
+      fieldRow('Processor fee', fmt(s.processor), true, r.category === 'FEE_DISCREPANCY' || r.category === 'AMOUNT_MISMATCH'),
       fieldRow('Settlement date', s.date, true, r.category === 'WIDE_WINDOW'),
       fieldRow('Currency', s.currency, false, !!l && s.currency !== l.currency),
     ],
