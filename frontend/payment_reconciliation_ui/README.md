@@ -39,13 +39,27 @@ Re-dropping the same file reports `0 new or updated, N unchanged` (idempotency p
 ## Test
 
 ```bash
-npm test           # Vitest: money + normalisation + selector golden figures
+npm test           # Vitest: domain suites (node) + component suites (jsdom)
 npm run test:coverage   # same tests + V8 coverage report (terminal + coverage/index.html)
 ```
 
 The domain tests assert the exact figures from the sample dataset (expected payout
 $5,095.36, actual $5,161.00, discrepancy −$65.64, total fees $151.74, 8 breaks) and the
 per-category / per-merchant sums.
+
+The component tests (`*.test.jsx`) render against that same fixture and drive real
+interactions — sorting, filtering, the Ledger/Settlement view switch, row expansion, CSV
+export — plus `App.test.jsx`, which exercises load, import, run and reset flows end to end
+with only `fetch` stubbed. Nothing under `src/` is mocked: `src/test/setup.js` stubs the
+browser APIs jsdom lacks (canvas text measurement for `styles/columns.js`, object URLs and
+anchor downloads for `downloadCsv`, `scrollIntoView`, `ResizeObserver`, `Blob.text`), so
+the components run their real code paths. Only `*.test.jsx` files take jsdom; the domain
+suites stay on the `node` environment.
+
+Coverage is reported, not gated — no thresholds are configured. Known and deliberate gaps:
+hover/`style` branches on `Btn` and `HoverRow`, `ColumnTip`'s flip-upward path (it needs a
+real viewport bottom, which jsdom cannot provide), the `uploadSettlements`/`apiPutJson`
+wrappers around the shared client, and a handful of defensive `|| 0` fallbacks.
 
 ## Build
 
@@ -84,6 +98,9 @@ src/
                 table.js       row chrome + the value→ink rules
                 global.css     resets and keyframes
   test/         golden fixtures + the sample-payload builder
+                setup.js       browser stubs jsdom lacks
+                helpers/       model + prop factories, controlled-render harness,
+                               fetch router, CSV download capture
 ```
 
 All report maths live in `domain/selectors.js` as pure functions of the normalised
@@ -107,6 +124,7 @@ one file. Money is handled in integer cents throughout and formatted once, at re
   and the raw label rather than crashing — forward-compatible.
 - **Staleness**: importing after a report was rendered flags the report as stale
   (persisted to `sessionStorage`); reconciliation only runs on an explicit click.
-- **Deferred** (not in this pass): React Router deep-links, MSW/component test suites,
-  the density (compact) toggle.
+- **Deferred** (not in this pass): React Router deep-links, the density (compact) toggle.
+  MSW is still unused — the component suites stub `fetch` at the single chokepoint in
+  `api/client.js` instead, which keeps the real client error handling under test.
 ```

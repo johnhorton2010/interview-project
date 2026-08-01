@@ -18,19 +18,31 @@ export default defineConfig({
     watch: true,
   },
   test: {
+    // The default stays `node`: the domain suites are pure functions over the model and
+    // pay nothing for a DOM. Only the component suites take jsdom, which costs a couple
+    // of hundred milliseconds of environment construction per file.
     environment: 'node',
-    include: ['src/**/*.test.js'],
+    environmentMatchGlobs: [['src/**/*.test.jsx', 'jsdom']],
+    include: ['src/**/*.test.{js,jsx}'],
+    setupFiles: ['./src/test/setup.js'],
+    // Off, as every suite imports describe/it/expect from 'vitest' — which is also why
+    // setup.js has to register Testing Library's afterEach(cleanup) by hand.
+    globals: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: './coverage',
       include: ['src/**/*.{js,jsx}'],
       exclude: [
-        'src/**/*.test.js',
-        'src/test/**',          // fixtures + sample-payload builder
+        // Covers .test.jsx too: counting the component suites as production source would
+        // add a few thousand self-covering lines and inflate the totals this report exists
+        // to expose.
+        'src/**/*.test.{js,jsx}',
+        'src/test/**',          // fixtures, setup and render helpers
         'src/main.jsx',         // React mount entrypoint
         'src/styles/tokens.js', // static token maps
       ],
+      // No thresholds on purpose: coverage picks the next thing to test, it is not a gate.
     },
   },
 });
