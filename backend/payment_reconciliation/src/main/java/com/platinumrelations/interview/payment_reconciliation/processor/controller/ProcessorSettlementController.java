@@ -70,7 +70,7 @@ public class ProcessorSettlementController {
                                                 ]
                                 """)
             ))
-            @Valid @RequestBody List<ProcessorSettlement> settlementList){
+            @RequestBody List<@Valid ProcessorSettlement> settlementList){
         return ResponseEntity.ok(processorSettlementService.bulkCreateProcessorSettlements(settlementList));
     }
 

@@ -31,7 +31,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2026, 6, 1).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2026, 6, 1).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -47,7 +47,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2026, 6, 1).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2026, 6, 1).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -63,7 +63,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2026, 12, 21).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2026, 12, 21).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -79,7 +79,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2026, 9, 21).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2026, 9, 21).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -95,7 +95,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2025, 12, 31).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2025, 12, 31).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -111,7 +111,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2025, 12, 31).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2025, 12, 31).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -127,7 +127,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2026, 2, 2).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2026, 2, 2).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()
@@ -143,7 +143,7 @@ public class WideWindowCategorizerTest {
         InternalTransaction it =InternalTransaction
                 .builder()
                 .internalTxnId("it1")
-                .capturedAt(LocalDate.of(2026, 3, 1).atStartOfDay(ZoneId.of("America/New_York")).toInstant())
+                .capturedAt(LocalDate.of(2026, 3, 1).atStartOfDay(ZoneId.of("America/New_York")).toOffsetDateTime())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement
                 .builder()

@@ -34,8 +34,6 @@ public class ProcessorSettlementRepository {
     }
 
     public Map<String, RowStatus> saveAll(List<ProcessorSettlement> processorSettlementList){
-        String sql2 = "MERGE INTO processor_settlement (network_ref, merchant_ref, merchant_id, card_last4, card_type, settled_amount, interchange_fee, processor_fee, currency, settlement_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
         String sql = """
                 MERGE INTO processor_settlement AS ps
                 using (VALUES (:networkRef,

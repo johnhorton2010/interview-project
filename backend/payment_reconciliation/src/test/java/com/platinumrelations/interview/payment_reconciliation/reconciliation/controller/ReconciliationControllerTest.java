@@ -79,7 +79,7 @@ public class ReconciliationControllerTest {
                 .grossAmount(new BigDecimal("351.60"))
                 .currency(Currency.USD.name())
                 .type(Type.SALE.name())
-                .capturedAt(LocalDate.of(2026, 6, 6).atStartOfDay(ZoneId.of("UTC")).toInstant())
+                .capturedAt(LocalDate.of(2026, 6, 6).atStartOfDay(ZoneId.of("UTC")).toOffsetDateTime())
                 .category(Category.CLEAN_MATCH.name())
                 .build();
         ProcessorSettlement ps = ProcessorSettlement

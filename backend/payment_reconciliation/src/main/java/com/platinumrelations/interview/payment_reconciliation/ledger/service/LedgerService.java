@@ -34,7 +34,7 @@ public class LedgerService {
         return ledgerRepository.saveAll(internalTransactions);
     }
 
-    private @Valid List<InternalTransaction> parseCsv(MultipartFile file) {
+    private List<@Valid InternalTransaction> parseCsv(MultipartFile file) {
             CsvSchema schema = CsvSchema
                     .builder()
                     .addColumn("internal_txn_id")

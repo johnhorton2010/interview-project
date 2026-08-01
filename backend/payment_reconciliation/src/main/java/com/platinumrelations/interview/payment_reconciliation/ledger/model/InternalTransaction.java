@@ -10,7 +10,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.OffsetDateTime;
 
 @Value
 @Builder
@@ -28,6 +28,6 @@ public class InternalTransaction{
         BigDecimal grossAmount;
         String currency;
         String type;
-        Instant capturedAt;
+        OffsetDateTime capturedAt;
         String category;
 }

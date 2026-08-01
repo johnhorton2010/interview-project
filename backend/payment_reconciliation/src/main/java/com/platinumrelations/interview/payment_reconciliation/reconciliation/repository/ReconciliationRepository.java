@@ -251,8 +251,8 @@ public class ReconciliationRepository {
         String sql = """
                 SELECT
                       rt.id,
-                      rt.internal_txn_id,
-                      rt.network_ref,
+                      rt.internal_txn_id AS led_internal_txn_id,
+                      rt.network_ref   AS ps_network_ref,
                       -- ledger side
                       led.merchant_id  AS led_merchant_id,
                       led.merchant_ref AS led_merchant_ref,
@@ -290,8 +290,8 @@ public class ReconciliationRepository {
         String sql = """
                 SELECT    rt.id,
                           rt.category,
-                          rt.internal_txn_id,
-                          rt.network_ref,
+                          rt.internal_txn_id  AS led_internal_txn_id,
+                          rt.network_ref   AS ps_network_ref,
                           -- ledger side
                           led.merchant_id  AS led_merchant_id,
                           led.merchant_ref AS led_merchant_ref,

@@ -8,11 +8,10 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ResultSetExtractor;
 
 import java.sql.*;
-import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 
 public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor<TransactionMapping> {
@@ -27,7 +26,7 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
         HashMap<String, ProcessorSettlement> psCache = new HashMap<>();
 
         while (rs.next()){
-            String curRowItId = rs.getString("internal_txn_id");
+            String curRowItId = rs.getString("led_internal_txn_id");
             InternalTransaction internalTransaction = null;
             if(curRowItId != null) {
                 InternalTransaction cachedIt = itCache.get(curRowItId);
@@ -36,14 +35,6 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
                     internalTransaction = cachedIt;
                 } else {
                     String categoryStr = retrieveCategoryStrOrNull(rs);
-
-                    Instant capturedAt;
-                    Timestamp capturedAtSqlTimestamp = rs.getTimestamp("led_captured_at");
-                    if (capturedAtSqlTimestamp == null) {
-                        capturedAt = null;
-                    } else {
-                        capturedAt = capturedAtSqlTimestamp.toInstant();
-                    }
 
                     internalTransaction = InternalTransaction
                             .builder()
@@ -55,7 +46,7 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
                             .grossAmount(rs.getBigDecimal("led_gross_amount"))
                             .currency(rs.getString("led_currency"))
                             .type(rs.getString("led_type"))
-                            .capturedAt(capturedAt)
+                            .capturedAt(rs.getObject("led_captured_at", OffsetDateTime.class))
                             .category(categoryStr)
                             .build();
 
@@ -63,7 +54,7 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
                 }
             }
 
-            String curRowPsId = rs.getString("network_ref");
+            String curRowPsId = rs.getString("ps_network_ref");
             ProcessorSettlement processorSettlement = null;
             if(curRowPsId != null) {
                 ProcessorSettlement cachedPs = psCache.get(curRowPsId);

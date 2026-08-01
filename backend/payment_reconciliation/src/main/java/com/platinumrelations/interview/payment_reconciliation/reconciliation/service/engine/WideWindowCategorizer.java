@@ -36,8 +36,7 @@ class WideWindowCategorizer {
     private final List<LocalDate> holidays;
 
     boolean hasWideWindow(InternalTransaction it, ProcessorSettlement ps){
-        // Assuming that we are using eastern time  for buisness days in alignment with the federal reserve and major banks
-        LocalDate curDate = it.getCapturedAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
+        LocalDate curDate = it.getCapturedAt().toLocalDate();
 
         // Starting at t+1
         curDate = curDate.plusDays(1);
