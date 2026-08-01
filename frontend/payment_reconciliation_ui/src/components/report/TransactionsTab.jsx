@@ -505,62 +505,69 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
   return (
     <section>
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <input type="search" value={tx.query} onChange={(e) => setTx((t) => ({ ...t, query: e.target.value }))} placeholder="Search id, merchant, ref, amount, or date — e.g. captured:2026-06-01..2026-06-05" title={SEARCH_TITLE} style={{ flex: 1, minWidth: 220, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK }} />
-        <SearchHelp
-          open={tx.helpOpen}
-          onToggle={() => setTx((t) => ({ ...t, helpOpen: !t.helpOpen }))}
-          onClose={() => setTx((t) => ({ ...t, helpOpen: false }))}
-          align="left"
-        />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>View</span>
-          <SegGroup
-            options={[
-              { label: 'Ledger', on: !settleCentric, title: 'One row per internal ledger transaction', onClick: () => setTx((t) => ({ ...t, view: 'ledger' })) },
-              { label: 'Settlement', on: settleCentric, title: 'One row per processor settlement', onClick: () => setTx((t) => ({ ...t, view: 'settlement' })) },
-            ]}
+      {/* header + toolbar */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '14px 18px' }}>
+        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Transactions</h2>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
+          Click a row to expand the full transaction detail.
+        </p>
+        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+          <input type="search" value={tx.query} onChange={(e) => setTx((t) => ({ ...t, query: e.target.value }))} placeholder="Search id, merchant, ref, amount, or date — e.g. captured:2026-06-01..2026-06-05" title={SEARCH_TITLE} style={{ flex: 1, minWidth: 220, padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: INK }} />
+          <SearchHelp
+            open={tx.helpOpen}
+            onToggle={() => setTx((t) => ({ ...t, helpOpen: !t.helpOpen }))}
+            onClose={() => setTx((t) => ({ ...t, helpOpen: false }))}
+            align="left"
           />
-        </div>
-        <div ref={catMenuRef} style={{ position: 'relative' }}>
-          <button type="button" aria-expanded={tx.catOpen} onClick={() => setTx((t) => ({ ...t, catOpen: !t.catOpen }))} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${tx.cats.length ? '#bcd0f5' : C.border}`, background: tx.cats.length ? '#eaf0fd' : C.surface, color: tx.cats.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            <span>{catLabel}</span>
-            <span aria-hidden="true" style={{ color: C.dim, fontSize: 10 }}>▾</span>
-          </button>
-          {tx.catOpen && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 30, width: 272, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
-              {catOptions.map((k) => {
-                const on = tx.cats.includes(k);
-                return (
-                  <label key={k} style={{ display: 'grid', gridTemplateColumns: '16px 1fr auto', alignItems: 'center', gap: 9, padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={on} onChange={() => setTx((t) => ({ ...t, cats: on ? t.cats.filter((x) => x !== k) : [...t.cats, k] }))} style={{ accentColor: '#2f5fd0' }} />
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                      <SevDot color={SEV_COLOR[getCategory(k).sev]} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(k).label}</span>
-                    </span>
-                    <span style={{ fontFamily: MONO, fontSize: 11, color: C.dim }}>{catCounts[k]}</span>
-                  </label>
-                );
-              })}
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: `1px solid ${C.borderSoft}`, marginTop: 4, padding: '7px 8px 3px' }}>
-                <button type="button" onClick={() => setTx((t) => ({ ...t, cats: [] }))} style={{ border: 0, background: 'none', padding: 0, fontSize: 11, color: ACCENT, cursor: 'pointer' }}>Clear</button>
-                <button type="button" onClick={() => setTx((t) => ({ ...t, catOpen: false }))} style={{ border: 0, background: 'none', padding: 0, fontSize: 11, color: INK2, cursor: 'pointer' }}>Done</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>View</span>
+            <SegGroup
+              options={[
+                { label: 'Ledger', on: !settleCentric, title: 'One row per internal ledger transaction', onClick: () => setTx((t) => ({ ...t, view: 'ledger' })) },
+                { label: 'Settlement', on: settleCentric, title: 'One row per processor settlement', onClick: () => setTx((t) => ({ ...t, view: 'settlement' })) },
+              ]}
+            />
+          </div>
+          <div ref={catMenuRef} style={{ position: 'relative' }}>
+            <button type="button" aria-expanded={tx.catOpen} onClick={() => setTx((t) => ({ ...t, catOpen: !t.catOpen }))} style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${tx.cats.length ? '#bcd0f5' : C.border}`, background: tx.cats.length ? '#eaf0fd' : C.surface, color: tx.cats.length ? ACCENT : INK2, padding: '6px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <span>{catLabel}</span>
+              <span aria-hidden="true" style={{ color: C.dim, fontSize: 10 }}>▾</span>
+            </button>
+            {tx.catOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 30, width: 272, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, boxShadow: '0 12px 28px rgba(19,26,36,0.13)', padding: 6, animation: 'riseIn 120ms ease-out' }}>
+                {catOptions.map((k) => {
+                  const on = tx.cats.includes(k);
+                  return (
+                    <label key={k} style={{ display: 'grid', gridTemplateColumns: '16px 1fr auto', alignItems: 'center', gap: 9, padding: '6px 8px', borderRadius: 5, fontSize: 12, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={on} onChange={() => setTx((t) => ({ ...t, cats: on ? t.cats.filter((x) => x !== k) : [...t.cats, k] }))} style={{ accentColor: '#2f5fd0' }} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                        <SevDot color={SEV_COLOR[getCategory(k).sev]} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(k).label}</span>
+                      </span>
+                      <span style={{ fontFamily: MONO, fontSize: 11, color: C.dim }}>{catCounts[k]}</span>
+                    </label>
+                  );
+                })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: `1px solid ${C.borderSoft}`, marginTop: 4, padding: '7px 8px 3px' }}>
+                  <button type="button" onClick={() => setTx((t) => ({ ...t, cats: [] }))} style={{ border: 0, background: 'none', padding: 0, fontSize: 11, color: ACCENT, cursor: 'pointer' }}>Clear</button>
+                  <button type="button" onClick={() => setTx((t) => ({ ...t, catOpen: false }))} style={{ border: 0, background: 'none', padding: 0, fontSize: 11, color: INK2, cursor: 'pointer' }}>Done</button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Type</span>
-          <SegGroup
-            options={[
-              { label: 'All', on: tx.type === 'all', onClick: () => setTx((t) => ({ ...t, type: 'all' })) },
-              { label: 'Sales', on: tx.type === 'SALE', onClick: () => setTx((t) => ({ ...t, type: 'SALE' })) },
-              { label: 'Refunds', on: tx.type === 'REFUND', onClick: () => setTx((t) => ({ ...t, type: 'REFUND' })) },
-            ]}
-          />
-        </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Type</span>
+            <SegGroup
+              options={[
+                { label: 'All', on: tx.type === 'all', onClick: () => setTx((t) => ({ ...t, type: 'all' })) },
+                { label: 'Sales', on: tx.type === 'SALE', onClick: () => setTx((t) => ({ ...t, type: 'SALE' })) },
+                { label: 'Refunds', on: tx.type === 'REFUND', onClick: () => setTx((t) => ({ ...t, type: 'REFUND' })) },
+              ]}
+            />
+          </div>
+          <div style={{ marginLeft: 'auto' }}>
+            <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
+          </div>
         </div>
       </div>
 
