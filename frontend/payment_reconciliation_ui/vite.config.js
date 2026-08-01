@@ -15,6 +15,7 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: true,
   },
   test: {
     environment: 'node',
