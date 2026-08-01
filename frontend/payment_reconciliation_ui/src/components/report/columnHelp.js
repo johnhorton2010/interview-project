@@ -9,10 +9,10 @@
 
 /** Shared definitions. Identical wherever the column appears. */
 export const FIGURE = {
-  sales: 'Gross sale amount, before any deduction.',
-  refunds: 'Gross refund amount. Shown as a deduction, so it prints negative.',
-  interchange: "Interchange — the card network's share, deducted by the processor.",
-  processor: "Processor fees — the processor's own share, deducted alongside interchange.",
+  sales: 'Gross sale amount.',
+  refunds: 'Gross refund amount.',
+  interchange: "Interchange fee — the card network's share.",
+  processor: "Processor fee — the processor's own share.",
   fees: 'Total fees the processor deducted.\nFees = interchange + processor.',
   expected: 'What the processor should have paid.\nExp pay = sales − refunds − fees.',
   settled: 'What the processor actually paid.',
@@ -40,11 +40,11 @@ export const help = (...parts) => parts.filter(Boolean).join('\n');
 
 export const SUMMARY_HELP = {
   // The row *is* a category here, unlike Breaks and Transactions where it classifies a record.
-  category: 'The reconciliation outcome this row groups. Click the row to open the records behind it.',
+  category: 'The reconciliation outcome this row groups.',
   severity: 'How much attention this category needs: high, medium, low, none or excluded.',
   totalCount:
-    'Reconciled rows in this category.\nThe quarantined row instead counts withheld records on both sides, since they never became rows.',
-  sides: 'Ledger-side records / settlement-side records in this category.',
+    'Reconciled rows in this category.',
+  sides: 'Ledger-side records / Settlement-side records in this category.',
   sales: help(FIGURE.sales, SCOPE.category),
   refunds: help(FIGURE.refunds, SCOPE.category),
   fees: help(FIGURE.fees, SCOPE.category),
@@ -55,7 +55,7 @@ export const SUMMARY_HELP = {
 
 export const MERCHANT_HELP = {
   // The row *is* a merchant here, unlike everywhere else where it is a field on a record.
-  merchant: 'The merchant this rollup covers.',
+  merchant: 'The merchant id this rollup covers.',
   sales: help(FIGURE.sales, SCOPE.merchant),
   refunds: help(FIGURE.refunds, SCOPE.merchant),
   interchange: help(FIGURE.interchange, SCOPE.merchant),
@@ -68,23 +68,23 @@ export const MERCHANT_HELP = {
   clean: 'Records that reconciled cleanly.',
   breaks: 'Records with a reconciliation break — anything that is not a clean match.',
   quarantine:
-    'Records withheld from every figure on this report, counted on both sides.\nA merchant whose records are all quarantined reads N/A across the money columns and appears only here.',
+    'Records withheld from every calculation on this report,.\nA merchant whose records are all quarantined reads N/A across the money columns and appears only here.',
 };
 
 export const BREAKS_HELP = {
   category: help('The reconciliation outcome — how the ledger and settlement sides compared.', SCOPE.row),
   merchant: help('The merchant the record belongs to.', SCOPE.row),
-  ref: help(FIGURE.merchantRef, 'When the ledger and settlement sides carry different refs, both are shown.'),
+  ref: help(FIGURE.merchantRef, 'For this record.'),
   sales: help(FIGURE.sales, SCOPE.row, 'Reads — when this record is a refund.'),
   refunds: help(FIGURE.refunds, SCOPE.row, 'Reads — when this record is a sale.'),
   fees: help(FIGURE.fees, SCOPE.row, 'Reads — when nothing settled.'),
   expected: help(FIGURE.expected, SCOPE.row),
-  settled: help(FIGURE.settled, SCOPE.row, 'Totalled when a transaction settled in parts.'),
-  impact: help(FIGURE.discrepancy, SCOPE.row, 'This is the column to work the list by.'),
+  settled: help(FIGURE.settled, SCOPE.row),
+  impact: help(FIGURE.discrepancy, SCOPE.row),
   captured: help(FIGURE.captured, SCOPE.row),
   // Deviates from the Transactions settlement view, where the same label means this
   // payout's date. Here it is the latest of however many the record has (normalize.js).
-  date: 'The date of the most recent settlement for this record.',
+  date: help('The date the settlement recorded.', SCOPE.row),
 };
 
 /**
@@ -98,9 +98,9 @@ export const transactionsHelp = (settleCentric) => {
   return {
     id: settleCentric
       ? "The processor's network reference for this payout. Click to copy."
-      : 'The internal ledger transaction id. Click to copy.',
+      : 'The internal ledger transaction id with the processor settlement id sublined. Click to copy either.',
     captured: settleCentric ? 'The date this payout settled.' : help(FIGURE.captured, SCOPE.row),
-    merchant: help('The merchant the record belongs to.', SCOPE.row),
+    merchant: help('The merchant id the record belongs to.', SCOPE.row),
     ref: help(FIGURE.merchantRef, SCOPE.row),
     sales: help(FIGURE.sales, money),
     refunds: help(FIGURE.refunds, money),
@@ -128,8 +128,7 @@ export const BAND_HELP = {
   unattributed: {
     ...transactionsHelp(false),
     id: help(
-      "The processor's network reference.",
-      "These rows have no ledger side, so the id column carries the settlement's own reference rather than a txn id.",
+      "The processor settlement id.",
       SCOPE.row,
     ),
     captured: help(FIGURE.captured, "These rows have no ledger side, so the column reads 'no ledger'.", SCOPE.row),
@@ -155,13 +154,8 @@ export const BAND_HELP = {
    * The band above the grand total, in both views. Four labels are blank there and must
    * stay without help; `ref` is relabelled Count.
    */
-  grand: (settleCentric) => ({
-    ref: help(
-      FIGURE.count,
-      settleCentric
-        ? 'One row per payout, plus one for each transaction that never settled.'
-        : 'One row per ledger transaction.',
-    ),
+  grand: () => ({
+    ref: help('The count of rows', SCOPE.visible),
     sales: help(FIGURE.sales, SCOPE.visible),
     refunds: help(FIGURE.refunds, SCOPE.visible),
     fees: help(FIGURE.fees, SCOPE.visible),

@@ -84,9 +84,9 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
     <section style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
       <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Per-merchant rollup</h2>
+          <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Merchant Rollup</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
-            Click a row to filter the break list, to open Transactions when a merchant has no breaks, or Quarantine when its records are all quarantined.
+            Click a row to see backing transactions.
           </p>
           <input
             type="search"
@@ -113,7 +113,7 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
 
       <FilterStrip bits={filterBits} onClear={() => setMr((m) => ({ ...m, query: '', breaksOnly: false }))} />
 
-      <div ref={tableRef} role="table" aria-label="Per-merchant rollup" style={{ fontSize: 13 }}>
+      <div ref={tableRef} role="table" aria-label="Merchant rollup" style={{ fontSize: 13 }}>
         <div role="row" style={headerRow(COLS, GAP)}>
           <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
           <HeadCell style={cell('sales')} help={HELP.sales}>Sales</HeadCell>
@@ -190,7 +190,7 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
         </div>
       </div>
       <TableFooter
-        left={<span style={{ textWrap: 'pretty' }}>Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy. A merchant whose records are all quarantined reads N/A across those columns.</span>}
+        left={<span style={{ textWrap: 'pretty' }}>Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy.<br/>A merchant whose records are all quarantined reads N/A across those columns.</span>}
         legend={<GlyphKey keys={['na']} />}
       />
     </section>

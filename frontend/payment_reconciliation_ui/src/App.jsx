@@ -39,14 +39,14 @@ function Header({ onRefresh }) {
 
 function EmptyState() {
   const steps = [
-    ['01', 'Import the internal ledger CSV.', 'The file is sent as selected — nothing is parsed or reordered in the browser.'],
-    ['02', 'Import the processor settlement JSON.', 'Validated as a non-empty array of objects with a network ref, then passed through unmodified.'],
-    ['03', 'Run reconciliation.', "Matching, tolerance and categories are the backend's work. This screen reads the result."],
+    ['01', 'Import the Internal Ledger CSV.', 'The file is sent as selected — nothing is parsed or reordered in the browser.'],
+    ['02', 'Import the Processor Settlement JSON.', 'Validated as a non-empty array of objects with a network ref, then passed through unmodified.'],
+    ['03', 'Run reconciliation.', "Matches transactions and categorizes the results."],
   ];
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: '72px 28px' }}>
       <h1 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em' }}>No reconciliation yet</h1>
-      <p style={{ margin: '0 0 32px', color: INK2, maxWidth: '52ch', textWrap: 'pretty' }}>Three steps to a report you can defend line by line.</p>
+      <p style={{ margin: '0 0 32px', color: INK2, maxWidth: '52ch', textWrap: 'pretty' }}>Three simple steps to generate a report.</p>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 1, background: C.border, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
         {steps.map(([n, title, body]) => (
           <li key={n} style={{ background: '#fff', padding: '18px 20px', display: 'grid', gridTemplateColumns: '26px 1fr', gap: 14 }}>
@@ -246,7 +246,7 @@ export default function App() {
       setMr(MR_DEFAULTS);
       markStale(false);
       await reload();
-      flash('All ingested data deleted');
+      flash('All data deleted');
     }
   };
 
@@ -275,7 +275,7 @@ export default function App() {
         reset={{
           disabled: !importDone,
           onOpen: () => setReset({ open: true, phase: 'confirm', phrase: '', done: [], failedAt: null, error: null }),
-          hint: !importDone ? 'Nothing imported yet — there is nothing to delete.' : 'Deletes reconciliations and both source datasets on the server. Irreversible.',
+          hint: !importDone ? 'Nothing imported yet — there is nothing to delete.' : 'Deletes previously imported internal ledger entries, processor settlements, and reconciliations. This is an irreversible operation.',
         }}
       />
 

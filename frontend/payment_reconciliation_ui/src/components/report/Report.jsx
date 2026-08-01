@@ -46,7 +46,7 @@ function PayoutPanel({ model, nav }) {
   const FEE_TITLE = 'Open each settlement — the settlement view itemises interchange and processor fees';
 
   const terms = [
-    { label: 'Gross ledger sales', value: fmt(f.sales), color: INK, barColor: '#9fb4d9', bar: bar(f.sales, 0), rule: 'transparent', title: `Open the ${nSales} sale rows behind this figure`, onClick: () => nav.toTransactions({ type: 'SALE', sortKey: 'sales' }) },
+    { label: 'Gross sales', value: fmt(f.sales), color: INK, barColor: '#9fb4d9', bar: bar(f.sales, 0), rule: 'transparent', title: `Open the ${nSales} sale rows behind this figure`, onClick: () => nav.toTransactions({ type: 'SALE', sortKey: 'sales' }) },
     // Refunds sort ascending: their amounts are negative, so ascending puts the largest
     // refund first — which is what someone opening this figure came to see.
     { label: 'Less gross refunds', value: '−' + fmt(f.refunds), color: NEG, barColor: '#e2b3b5', bar: bar(f.refunds, f.sales - f.refunds), title: `Open the ${nRefunds} refund rows behind this figure`, onClick: () => nav.toTransactions({ type: 'REFUND', sortKey: 'refunds', sortDir: 'asc' }) },
@@ -58,13 +58,13 @@ function PayoutPanel({ model, nav }) {
   }
   terms.push({ label: 'Expected payout', value: fmt(f.expected), color: INK, strong: true, barColor: ACCENT, bar: bar(f.expected, 0), rule: C.borderStrong, title: `Open all ${nRows} reconciled rows this figure is derived from`, onClick: () => nav.toTransactions({}) });
   terms.push({ label: 'Actual settled', value: fmt(f.actual), color: INK, barColor: '#7f8b9d', bar: bar(f.actual, 0), title: `Open the ${f.includedSettle} settlements that sum to this figure`, onClick: () => nav.toTransactions({ view: 'settlement', sortKey: 'settled' }) });
-  terms.push({ label: 'Total discrepancy', value: sfmt(f.discrepancy), color: f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS, strong: true, barColor: f.discrepancy < 0 ? NEG : POS, bar: bar(f.discrepancy, Math.min(f.expected, f.actual)), rule: C.borderStrong, title: `Open all ${f.breakCount} breaks, largest discrepancy first`, onClick: () => nav.toBreaks() });
+  terms.push({ label: 'Total discrepancy', value: sfmt(f.discrepancy), color: f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS, strong: true, barColor: f.discrepancy < 0 ? NEG : POS, bar: bar(f.discrepancy, Math.min(f.expected, f.actual)), rule: C.borderStrong, title: `Open all ${f.breakCount} breaks`, onClick: () => nav.toBreaks() });
 
   return (
     <section aria-label="Payout derivation" style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '18px 20px 20px', marginBottom: 16 }}>
       <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Expected payout vs. actual settled</h2>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7b8697' }}>Every term opens the rows behind it.</p>
+        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Expected Payout vs. Actual Settled</h2>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7b8697' }}>Every total can be clicked to view the transactions backing the calculation.</p>
       </div>
       <div style={{ maxWidth: 780 }}>
         {terms.map((t, i) => (
@@ -87,7 +87,7 @@ function PayoutPanel({ model, nav }) {
         ))}
       </div>
       <p style={{ margin: '16px 0 0', fontSize: 11, color: '#9aa3b0', textWrap: 'pretty' }}>
-        Excludes {f.quarantineCount} quarantined records. A positive discrepancy means the processor settled less than expected (money owed to us); a negative discrepancy means it settled more.
+        A positive discrepancy means the processor settled less than expected (money owed to us) and a negative discrepancy means it settled more.
       </p>
     </section>
   );
@@ -101,7 +101,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setM
   const discColor = f.discrepancy === 0 ? INK : f.discrepancy < 0 ? NEG : POS;
   const discTileBg = f.discrepancy === 0 ? '#fff' : f.discrepancy < 0 ? '#fdf5f5' : '#f3faf6';
   const discTileBorder = f.discrepancy === 0 ? C.border : f.discrepancy < 0 ? '#f2d2d2' : '#cfe6da';
-  const discNote = f.discrepancy === 0 ? 'balanced' : f.discrepancy < 0 ? 'processor settled more than expected' : 'processor settled less than expected';
+  const discNote = f.discrepancy === 0 ? 'balanced' : f.discrepancy < 0 ? 'Processor settled more than expected.' : 'Processor settled less than expected.';
 
   const tileBase = { borderRadius: 8, padding: '14px 16px' };
 
@@ -122,7 +122,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setM
             <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: INK2 }}>{f.quarantineCount}</span>
             <span style={{ fontSize: 12, color: INK2 }}>records</span>
           </div>
-          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Excluded from every figure on this report.</div>
+          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Excluded from every calculation on this report. Click to see records.</div>
         </Tile>
 
         <Tile style={{ ...tileBase, background: discTileBg, border: `1px solid ${discTileBorder}` }}>
@@ -134,7 +134,7 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setM
         <Tile onClick={() => nav.toBreaks()} style={{ ...tileBase, background: '#fff', border: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Breaks</div>
           <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{f.breakCount}</div>
-          <div style={{ fontSize: 11, color: ACCENT, marginTop: 6 }}>Work the list →</div>
+          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Click to see records.</div>
         </Tile>
       </section>
 

@@ -30,7 +30,7 @@ export const CATS = {
     label: 'Split settlement',
     sev: 'low',
     explain:
-      'One ledger transaction was settled across multiple payouts. Usually benign — a zero-impact break still warrants confirming the parts sum to the whole.',
+      'One ledger transaction was settled across multiple settlement payouts.',
   },
   ORPHAN_REFUND: {
     label: 'Orphan refund',
@@ -42,7 +42,7 @@ export const CATS = {
     label: 'Wide settlement window',
     sev: 'low',
     explain:
-      'Matched, but settled unusually long after capture. Timing only; typically no financial impact.',
+      'Matched, but settled unusually long after capture.',
   },
   UNMATCHED_INTERNAL: {
     label: 'Unmatched ledger transaction',
@@ -58,7 +58,7 @@ export const CATS = {
     label: 'Quarantined',
     sev: 'excluded',
     explain:
-      'Record failed validation and is excluded from every figure on this report. Fix at source and re-import.',
+      'Record failed validation and is excluded from every calculation on this report.',
   },
 };
 

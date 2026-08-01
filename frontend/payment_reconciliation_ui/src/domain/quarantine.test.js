@@ -86,7 +86,7 @@ describe('quarantineReason — a zero amount', () => {
   it('blames a zero settled amount', () => {
     const r = quarantineReason(settlement({ settled: 0 }), SETTLEMENT);
     expect(r.field).toBe('Settled amount');
-    expect(r.text).toBe('Settled amount $0.00 — unparseable input, or a settlement of nothing.');
+    expect(r.text).toBe('$0.00 a settlement of nothing or originating from an unparseable value.');
     expect(r.note).toBeTruthy();
   });
 

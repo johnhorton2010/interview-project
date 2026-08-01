@@ -52,13 +52,13 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
         <div>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Quarantined records</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
-            Failed validation and excluded from every figure on this report. Click a row to see the record and the field that failed. Fix at source, then reset and re-import.
+            Quarantined records are excluded from every calculation on this report. Click a row to see the full transaction detail.
           </p>
         </div>
         <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
       </div>
 
-      <div ref={tableRef} role="table" aria-label="Quarantined records" style={{ fontSize: 13 }}>
+      <div ref={tableRef} role="table" aria-label="Quarantined Records" style={{ fontSize: 13 }}>
         <div role="row" style={headerRow(COLS, GAP)}>
           <HeadCell style={cell('side')} help={HELP.side}>Side</HeadCell>
           <HeadCell style={cell('id')} help={HELP.id}>Identifier</HeadCell>
@@ -67,7 +67,7 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
           <HeadCell style={cell('reason')} help={HELP.reason}>Why it was withheld</HeadCell>
           <span role="columnheader" />
         </div>
-        {rows.length === 0 && <EmptyState>Nothing quarantined — every record passed validation.</EmptyState>}
+        {rows.length === 0 && <EmptyState>Nothing quarantined.</EmptyState>}
         {rows.map((r) => {
           const open = expanded === r.key;
           // Hover lives on the wrapper so the cells and the expanded detail tint

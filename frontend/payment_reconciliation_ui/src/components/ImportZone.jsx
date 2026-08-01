@@ -93,7 +93,7 @@ export default function ImportZone({ ledger, settle, run, reset, hasReport, impo
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: INK2 }}>Import</h2>
-          <span style={{ fontSize: 12, color: '#7b8697' }}>Ledger export and processor settlement file. Re-importing the same file is a no-op.</span>
+          <span style={{ fontSize: 12, color: '#7b8697' }}>Gracefully handles idempotent imports by checking for preexisting transactions.</span>
         </div>
         {hasReport && (
           <button type="button" onClick={onCollapse} style={{ border: 0, background: 'none', color: ACCENT, fontSize: 12, cursor: 'pointer', padding: 0 }}>Collapse</button>
@@ -108,8 +108,8 @@ export default function ImportZone({ ledger, settle, run, reset, hasReport, impo
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: 18, alignItems: 'start' }}>
-        <DropCard title="Internal ledger — CSV" accept=".csv,text/csv" noun="transactions" outcomesNoun="transaction" busy={ledger.busy} result={ledger.result} entriesOpen={ledger.entriesOpen} onToggleEntries={ledger.onToggleEntries} onFile={ledger.onFile} hint=".csv · max 10 MB" endpointHint="PUT /api/v1/ledger-transactions…" />
-        <DropCard title="Processor settlements — JSON" accept=".json,application/json" noun="settlements" outcomesNoun="settlement" busy={settle.busy} result={settle.result} entriesOpen={settle.entriesOpen} onToggleEntries={settle.onToggleEntries} onFile={settle.onFile} hint=".json · root must be an array" endpointHint="PUT /api/v1/processor-settlement-transactions…" />
+        <DropCard title="Internal Ledger — CSV format" accept=".csv,text/csv" noun="transactions" outcomesNoun="transaction" busy={ledger.busy} result={ledger.result} entriesOpen={ledger.entriesOpen} onToggleEntries={ledger.onToggleEntries} onFile={ledger.onFile} hint=".csv" endpointHint="PUT /api/v1/ledger-transactions…" />
+        <DropCard title="Processor Settlements — JSON format" accept=".json,application/json" noun="settlements" outcomesNoun="settlement" busy={settle.busy} result={settle.result} entriesOpen={settle.entriesOpen} onToggleEntries={settle.onToggleEntries} onFile={settle.onFile} hint=".json" endpointHint="PUT /api/v1/processor-settlement-transactions…" />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 128 }}>
           <Btn onClick={run.onRun} disabled={run.disabled} style={{ border: `1px solid ${run.disabled ? C.border : ACCENT}`, background: run.disabled ? '#f8f9fb' : ACCENT, color: run.disabled ? '#aab3bf' : '#fff', padding: '11px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, cursor: run.disabled ? 'not-allowed' : 'pointer' }} hoverStyle={run.disabled ? null : { background: '#2a55bd' }}>

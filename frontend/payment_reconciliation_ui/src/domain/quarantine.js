@@ -21,7 +21,7 @@ const nonUsd = (ccy) => `Currency ${ccy} — non-USD records are always quaranti
 // "Failed validation.". It has exactly two origins, and both blame the amount:
 //
 //   * the source value was not parseable as a number. The backend coerces such a value
-//     to zero before serialising — TXN-BAD-002 is `N/A` in the source CSV and arrives as
+//     to zero before serializing — TXN-BAD-002 is `N/A` in the source CSV and arrives as
 //     `"gross_amount": 0.0` — so the zero we receive is all that is left of the failure.
 //   * a system recorded a sale, refund or settlement of nothing. That is a logical error,
 //     not an arithmetic one: a business does not pay a processor to move no money, so a
@@ -33,8 +33,7 @@ const nonUsd = (ccy) => `Currency ${ccy} — non-USD records are always quaranti
 // already withheld, so a legitimate zero elsewhere is untouched.
 const ZERO_NOTE =
   'Either the source value was not parseable as a number and was coerced to zero, or a system ' +
-  'recorded a transaction of nothing. A payment of nothing is not something a business sends to ' +
-  'a processor — it would be paying to have no money moved. Either way, the amount is wrong.';
+  'recorded a transaction of nothing. Either way, the amount is wrong.';
 
 /**
  * Why a record was withheld, and which of its fields is to blame.
@@ -52,7 +51,7 @@ export function quarantineReason(rec, side) {
   if (side === SETTLEMENT) {
     if (rec.settled === null) return reason('Settled amount', 'Settled amount omitted by the processor.');
     if (rec.settled === 0)
-      return reason('Settled amount', 'Settled amount $0.00 — unparseable input, or a settlement of nothing.', ZERO_NOTE);
+      return reason('Settled amount', '$0.00 a settlement of nothing or originating from an unparseable value.', ZERO_NOTE);
     if (rec.currency && rec.currency !== 'USD') return reason('Currency', nonUsd(rec.currency));
     return reason(null, 'Failed validation.');
   }

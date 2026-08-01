@@ -19,15 +19,15 @@ export default function ResetModal({ open, phase, phrase, setPhrase, done, faile
   if (!open) return null;
 
   const title =
-    phase === 'done' ? 'All ingested data deleted' : phase === 'running' ? 'Deleting ingested data' : phase === 'failed' ? 'Reset did not complete' : 'Delete all ingested data';
+    phase === 'done' ? 'All ingested data deleted' : phase === 'running' ? 'Deleting data' : phase === 'failed' ? 'Reset did not complete' : 'Delete all data';
   const body =
     phase === 'done'
-      ? 'Reconciliations and both source datasets were cleared. Import the ledger and settlement files to start again.'
+      ? 'Internal ledger entries, processor settlements, and reconciliations were cleared. Import the internal ledger and settlement files to start again.'
       : phase === 'running'
         ? 'Clearing reconciliations, then the internal ledger, then processor settlements. Do not close this window.'
         : phase === 'failed'
           ? 'The sequence halted partway. Read the status of each dataset below before retrying or importing anything.'
-          : 'This clears reconciliations, then the internal ledger, then processor settlements — on the server. It is irreversible and there is no undo. You will need to re-import both files.';
+          : 'Deletes previously imported internal ledger entries, processor settlements, and reconciliations. This is an irreversible operation and there is no undo. You will need to re-import both files.';
   const confirmDisabled = phase === 'confirm' && phrase.trim().toUpperCase() !== 'RESET';
   const confirmLabel = phase === 'running' ? 'Deleting…' : phase === 'failed' ? 'Retry' : 'Delete everything';
   const cancelLabel = phase === 'done' ? 'Done' : phase === 'running' ? 'Close' : phase === 'failed' ? 'Dismiss' : 'Cancel';

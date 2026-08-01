@@ -106,7 +106,7 @@ describe('scope', () => {
 describe('the documented cross-tab deviations are real', () => {
   it('Settled on means different things on Breaks and in the settlement view', () => {
     expect(BREAKS_HELP.date).not.toBe(transactionsHelp(true).captured);
-    expect(BREAKS_HELP.date).toMatch(/most recent/);
+    expect(BREAKS_HELP.date).toMatch(/The date the settlement recorded.[\s\S]For this record./);
     expect(transactionsHelp(true).captured).toMatch(/this payout/);
   });
 
@@ -150,7 +150,7 @@ describe('section band labels', () => {
   // the header, the band is describing the opposite of what its rows hold.
   it('the id column is inverted relative to the header of the view it sits in', () => {
     expect(BAND_HELP.unattributed.id).not.toBe(transactionsHelp(false).id);
-    expect(BAND_HELP.unattributed.id).toMatch(/network reference/i);
+    expect(BAND_HELP.unattributed.id).toMatch(/The processor settlement id.[\s\S]For this record./i);
 
     expect(BAND_HELP.neverSettled.id).not.toBe(transactionsHelp(true).id);
     expect(BAND_HELP.neverSettled.id).toMatch(/ledger transaction id/i);
@@ -170,12 +170,10 @@ describe('section band labels', () => {
     expect(BAND_HELP.neverSettled.captured).toMatch(/unsettled/);
   });
 
-  it('Count states its unit, which differs by view', () => {
+  it('Count no longer states its unit for a given view', () => {
     const l = BAND_HELP.grand(false).ref;
     const s = BAND_HELP.grand(true).ref;
-    expect(l).not.toBe(s);
-    expect(l).toMatch(/one row per ledger transaction/i);
-    expect(s).toMatch(/one row per payout/i);
+    expect(l).toBe(s);
   });
 
   it('grand-total money columns say the totals follow the filters', () => {

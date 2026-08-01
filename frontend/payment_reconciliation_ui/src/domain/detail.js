@@ -86,7 +86,7 @@ function relatedFor(r, model) {
     if (sale) return { items: [{ label: 'Original sale', txn: sale }], note: null };
     return {
       items: [],
-      note: `No original sale under ${l.merchantRef || 'this ref'} in the imported window — check earlier periods.`,
+      note: `No original sale under ${l.merchantRef || 'this ref'}.`,
     };
   }
   const refunds = model.ledger.filter((x) => x.type === 'REFUND' && sameRef(x));
@@ -108,7 +108,7 @@ export function buildDetail(r, model, depth = 0) {
     mrow('Ledger amount', sfmt(r.rowLedger)),
     mrow('Less fees', '−' + fmt(r.rowFees)),
     mrow('Expected', fmt(r.rowExpected), { top: true, strong: true }),
-    mrow('Actual settled', fmt(r.rowActual)),
+    mrow('Settled amount', fmt(r.rowActual)),
     mrow('Impact on discrepancy', sfmt(r.rowImpact), {
       top: true,
       strong: true,

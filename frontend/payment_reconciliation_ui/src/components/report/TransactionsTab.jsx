@@ -270,8 +270,8 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // The key below states what 〃 means; this says which figures it carries and why they
   // are counted once, which is more than a key can hold.
   const footnote = settleCentric
-    ? 'Sales, refunds, expected pay and discrepancy belong to the transaction, not to each payout, so a transaction that settled in parts prints them once. Quarantined records are excluded; see the Quarantine tab.'
-    : 'Quarantined records are excluded — see the Quarantine tab.';
+    ? 'Sales, refunds, expected pay and discrepancy belong to the transaction, not to each payout, so a transaction that settled in parts prints them once.'
+    : '';
 
   const exportCsv = () => {
     let n;
@@ -694,7 +694,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
               {split && summaryRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totalsOf(sec1), false)}
               {orphanRows.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} help={BAND_HELP.unattributed} template={COLS} gap={GAP} col={col}>
-                  Unattributed settlements — no ledger side
+                  Unmatched Settlements
                 </SectionHeader>
               )}
               {orphanRows.map(renderLedgerRow)}

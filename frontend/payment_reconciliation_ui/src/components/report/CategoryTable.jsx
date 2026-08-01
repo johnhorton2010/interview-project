@@ -129,15 +129,15 @@ export default function CategoryTable({ model, nav, flash }) {
     <section style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
       <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Reconciliation summary</h2>
+          <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Reconciliation Summary</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
-            Both sides are reported: one amount column would be ambiguous where a ledger row faces two settlements. Click a row to filter the break list.
+            Click a row to see backing transactions.
           </p>
         </div>
         <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
       </div>
 
-      <div ref={tableRef} role="table" aria-label="Reconciliation summary" style={{ fontSize: 13 }}>
+      <div ref={tableRef} role="table" aria-label="Reconciliation Summary" style={{ fontSize: 13 }}>
         <div role="row" style={headerRow(COLS, GAP)}>
           <HeadCell style={cell('category')} help={HELP.category}>Category</HeadCell>
           <HeadCell style={cell('severity')} help={HELP.severity}>Severity</HeadCell>
@@ -154,7 +154,7 @@ export default function CategoryTable({ model, nav, flash }) {
         {included.map(renderRow)}
 
         <div role="row" style={totalRow(COLS, GAP)}>
-          <span role="cell" style={totalLabel}>Total — included records only</span>
+          <span role="cell" style={totalLabel}>Total</span>
           <span role="cell" />
           <Num style={cell('totalCount')} color={INK}>{totals.totalCount}</Num>
           <Num style={cell('sides')} color={INK}>{totals.sides}</Num>
