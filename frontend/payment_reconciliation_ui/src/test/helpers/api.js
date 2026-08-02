@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { API_PREFIX } from '../../api/client.js';
 
 // Every request in the app funnels through the single `fetch` in api/client.js, so one
 // global stub covers reconciliations, both uploads, the run and all three deletes — with
@@ -27,7 +28,7 @@ export const offline = () => ({ __offline: true });
 
 /**
  * @param {Record<string, unknown>} routes keyed `'METHOD /path'`, the path written without
- *   the /api/v1 prefix. A value may be a payload, `fail(...)`, `offline()`, or a function
+ *   the API_PREFIX. A value may be a payload, `fail(...)`, `offline()`, or a function
  *   returning one of those.
  */
 export function mockApi(routes = {}) {
@@ -35,7 +36,9 @@ export function mockApi(routes = {}) {
   const calls = [];
   const fetchMock = vi.fn(async (url, options = {}) => {
     const method = options.method || 'GET';
-    const path = String(url).replace(/^\/api\/v1/, '');
+    // Routes are keyed prefix-less, so strip whatever prefix client.js prepended.
+    const href = String(url);
+    const path = href.startsWith(API_PREFIX) ? href.slice(API_PREFIX.length) : href;
     const key = `${method} ${path}`;
     calls.push({ key, method, path, url, options, body: options.body });
     const route = table[key];

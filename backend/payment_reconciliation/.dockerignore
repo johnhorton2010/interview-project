@@ -1,0 +1,33 @@
+# Ignore local build directories
+**/target/
+**/build/
+**/out/
+
+# Ignore version control systems
+**/.git
+**/.gitignore
+**/.gitattributes
+**/.hg
+**/.svn
+
+# Ignore IDE settings and metadata
+**/.idea/
+**/*.iml
+**/.vscode/
+**/.settings/
+**/.classpath
+**/.project
+**/.nbproject/
+
+# Ignore configuration and environment secrets
+**/.env
+**/docker-compose*.yml
+
+# Ignore documentation and logs
+**/*.md
+**/logs/
+**/*.log
+
+# Ignore OS-specific files
+**/.DS_Store
+**/Thumbs.db

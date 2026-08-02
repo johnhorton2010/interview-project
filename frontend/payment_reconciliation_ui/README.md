@@ -23,7 +23,7 @@ correctness rules follow the accompanying PRD.
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173  (proxies /api → :8080)
+npm run dev        # http://localhost:5173  (proxies APP_API_PREFIX → :8080)
 ```
 
 Then, in the app:
@@ -71,7 +71,11 @@ npm run preview
 ## Configuration
 
 - `VITE_API_BASE_URL` (default `http://localhost:8080`) — the backend the Vite dev
-  proxy forwards `/api` to. See `.env.example`.
+  proxy forwards the API prefix to. See `.env.example`.
+- `APP_API_PREFIX` (default `/api/v1`) — read from the **repo-root** `.env`, the one
+  place the prefix is defined; Spring maps its controllers under it and the nginx proxy
+  matches it. Vite bakes it into the bundle at build time, so changing it means a
+  restart of `npm run dev` (or `docker compose up --build` for the container).
 
 ## Architecture
 

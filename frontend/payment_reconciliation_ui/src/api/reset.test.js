@@ -3,6 +3,7 @@
 // they are pinned here against a stubbed fetch.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { runReset, RESET_STEPS } from './reset.js';
+import { API_PREFIX } from './client.js';
 
 const JSON_HEADERS = { get: () => 'application/json' };
 
@@ -33,9 +34,9 @@ describe('runReset — dependency order (FR-9.3)', () => {
     expect(res.done).toEqual(['recon', 'ledger', 'settle']);
     // Reconciliations must go first: the source rows they reference outlive them.
     expect(calls.map((c) => c.url)).toEqual([
-      '/api/v1/reconciliations',
-      '/api/v1/ledger-transactions',
-      '/api/v1/processor-settlement-transactions',
+      `${API_PREFIX}/reconciliations`,
+      `${API_PREFIX}/ledger-transactions`,
+      `${API_PREFIX}/processor-settlement-transactions`,
     ]);
     expect(calls.every((c) => c.method === 'DELETE')).toBe(true);
   });
@@ -58,7 +59,7 @@ describe('runReset — halt on failure (FR-9.3)', () => {
     expect(res.error).toBeInstanceOf(Error);
     expect(res.error.status).toBe(500);
     // "nothing after the failure was attempted" — what the dialog tells the analyst.
-    expect(calls.map((c) => c.url)).not.toContain('/api/v1/processor-settlement-transactions');
+    expect(calls.map((c) => c.url)).not.toContain(`${API_PREFIX}/processor-settlement-transactions`);
     expect(calls).toHaveLength(2);
   });
 

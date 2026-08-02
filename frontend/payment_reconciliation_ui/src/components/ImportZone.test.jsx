@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ImportZone from './ImportZone.jsx';
+import { API_PREFIX } from '../api/client.js';
 
 const card = (over = {}) => ({
   busy: false,
@@ -97,7 +98,7 @@ describe('ImportZone', () => {
       const { container, ledger, user } = setup({ ledger: { busy: true } });
 
       expect(screen.getByText('uploading')).toBeInTheDocument();
-      expect(screen.getByText('PUT /api/v1/ledger-transactions…')).toBeInTheDocument();
+      expect(screen.getByText(`PUT ${API_PREFIX}/ledger-transactions…`)).toBeInTheDocument();
 
       await user.click(screen.getByText('Internal Ledger — CSV format'));
       expect(ledger.onFile).not.toHaveBeenCalled();

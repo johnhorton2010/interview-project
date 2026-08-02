@@ -1,4 +1,4 @@
-// PUT /api/v1/processor-settlement-transactions — JSON array of settlements.
+// PUT <API_PREFIX>/processor-settlement-transactions — JSON array of settlements.
 // The client validates structure client-side, then sends the parsed array
 // UNMODIFIED (no coercion of settled_amount, no key renaming) per PRD §5.2.
 

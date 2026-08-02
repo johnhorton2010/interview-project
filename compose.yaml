@@ -1,0 +1,78 @@
+services:
+  backend:
+    build: ./backend/payment_reconciliation/
+    container_name: pay-recon-backend
+    ports:
+      - "${APP_BACKEND_PORT}:8080"
+    environment:
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      # The image carries only the jar, so application.properties' optional import of the
+      # repo-root .env finds nothing here — the prefix has to arrive as an env var.
+      APP_API_PREFIX: ${APP_API_PREFIX}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
+    healthcheck:
+      # Runs inside the container, where Spring always listens on 8080. Must not use
+      # APP_BACKEND_PORT — that is only the host publish port.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 1s
+      timeout: 5s
+      retries: 15
+      start_period: 0s
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pay-recon-net
+  frontend:
+    build:
+      context: ./frontend/payment_reconciliation_ui/
+      args:
+        # Baked into the JS bundle by vite.config.js at build time — unlike the nginx
+        # variables below, a change here only lands on `docker compose up --build`.
+        APP_API_PREFIX: ${APP_API_PREFIX}
+    container_name: pay-recon-frontend
+    ports:
+      - "${APP_FRONTEND_PORT}:80"
+    environment:
+      # Substituted into nginx.conf.template at container start. The filter scopes
+      # envsubst to APP_* names, so a future env var can't collide with an nginx
+      # variable used in the template — nginx's own are all lowercase.
+      APP_BACKEND_HOST: ${APP_BACKEND_HOST}
+      APP_API_PREFIX: ${APP_API_PREFIX}
+      NGINX_ENVSUBST_FILTER: "^APP_"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - pay-recon-net
+  db:
+    image: postgres:18-alpine
+    container_name: pay-recon-db
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}" ]
+      interval: 1s
+      timeout: 5s
+      retries: 15
+      start_period: 0s
+    volumes:
+      - ./backend/payment_reconciliation/src/test/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - pgdata:/var/lib/postgresql
+    networks:
+      - pay-recon-net
+
+volumes:
+  pgdata:
+
+networks:
+  pay-recon-net:
+    driver: bridge

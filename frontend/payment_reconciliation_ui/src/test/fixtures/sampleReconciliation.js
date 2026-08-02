@@ -1,5 +1,5 @@
 // Golden fixture: the sample dataset from the PRD/design, assembled into the exact
-// three-map GET /api/v1/reconciliations shape the backend returns. The ledger,
+// three-map GET /reconciliations shape the backend returns. The ledger,
 // settlement, link and category data below are the design component's own preview
 // data, which is the sample the PRD's acceptance criteria (§11) are stated against.
 

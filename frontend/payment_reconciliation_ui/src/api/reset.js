@@ -2,12 +2,14 @@
 // The bodies are ignored here — FR-9.3 asks only which datasets were and were not
 // cleared, which the step outcome below already carries.
 
-import { apiDelete } from './client.js';
+import { API_PREFIX, apiDelete } from './client.js';
 
+// `path` is prefix-less — client.js prepends API_PREFIX. `endpoint` is the display
+// string shown in the reset UI and in failure messages, so it spells the prefix out.
 export const RESET_STEPS = [
-  { key: 'recon', endpoint: 'DELETE /api/v1/reconciliations', path: '/reconciliations' },
-  { key: 'ledger', endpoint: 'DELETE /api/v1/ledger-transactions', path: '/ledger-transactions' },
-  { key: 'settle', endpoint: 'DELETE /api/v1/processor-settlement-transactions', path: '/processor-settlement-transactions' },
+  { key: 'recon', endpoint: `DELETE ${API_PREFIX}/reconciliations`, path: '/reconciliations' },
+  { key: 'ledger', endpoint: `DELETE ${API_PREFIX}/ledger-transactions`, path: '/ledger-transactions' },
+  { key: 'settle', endpoint: `DELETE ${API_PREFIX}/processor-settlement-transactions`, path: '/processor-settlement-transactions' },
 ];
 
 /**

@@ -26,8 +26,10 @@ dependencies {
 	implementation ("org.springframework.boot:spring-boot-starter-validation")
 	implementation ("org.springframework.boot:spring-boot-starter-actuator")
 
-	implementation("org.springframework.boot:spring-boot-h2console")
-	runtimeOnly("com.h2database:h2")
+	runtimeOnly("org.postgresql:postgresql")
+
+	testImplementation("org.springframework.boot:spring-boot-h2console")
+	testImplementation("com.h2database:h2")
 
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 
@@ -57,4 +59,10 @@ tasks.jacocoTestReport {
 		csv.required.set(false)
 		html.required.set(true)
 	}
+}
+
+// Skip the extra -plain.jar and give bootJar a fixed name so the Dockerfile
+// doesn't have to glob for it.
+tasks.named<Jar>("jar") {
+	enabled = false
 }

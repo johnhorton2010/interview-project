@@ -1,4 +1,4 @@
-// PUT /api/v1/ledger-transactions — multipart upload of the internal ledger CSV.
+// PUT <API_PREFIX>/ledger-transactions — multipart upload of the internal ledger CSV.
 // The raw file is sent as selected; the client does not parse or re-serialise it.
 
 import { apiPutForm } from './client.js';

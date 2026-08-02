@@ -7,6 +7,7 @@ import { render, screen, fireEvent, waitFor, within, act } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import App from './App.jsx';
 import { mockApi, fail, offline } from './test/helpers/api.js';
+import { API_PREFIX } from './api/client.js';
 import { buildSamplePayload, emptyPayload } from './test/helpers/model.js';
 import { dataRows } from './test/helpers/render.jsx';
 
@@ -294,7 +295,7 @@ describe('App', () => {
 
       // The phrase titles the dialog and heads its error panel, so assert on the dialog.
       await waitFor(() => expect(screen.getByRole('dialog')).toHaveAccessibleName('Reset did not complete'));
-      expect(screen.getByRole('status')).toHaveTextContent('DELETE /api/v1/ledger-transactions returned 500 — nope');
+      expect(screen.getByRole('status')).toHaveTextContent(`DELETE ${API_PREFIX}/ledger-transactions returned 500 — nope`);
 
       await user.click(screen.getByRole('button', { name: 'Dismiss' }));
 
@@ -313,13 +314,13 @@ describe('App', () => {
 
       await user.click(screen.getByRole('button', { name: 'Refresh' }));
 
-      expect(await screen.findByText('Refreshed — GET /api/v1/reconciliations')).toBeInTheDocument();
+      expect(await screen.findByText(`Refreshed — GET ${API_PREFIX}/reconciliations`)).toBeInTheDocument();
       expect(api.keys().filter((k) => k === 'GET /reconciliations')).toHaveLength(2);
 
       await act(async () => {
         vi.advanceTimersByTime(2400);
       });
-      expect(screen.queryByText('Refreshed — GET /api/v1/reconciliations')).not.toBeInTheDocument();
+      expect(screen.queryByText(`Refreshed — GET ${API_PREFIX}/reconciliations`)).not.toBeInTheDocument();
     } finally {
       vi.clearAllTimers();
       vi.useRealTimers();

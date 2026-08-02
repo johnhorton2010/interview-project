@@ -1,0 +1,62 @@
+# Serves the built SPA and proxies the API prefix to the backend container, so the browser
+# makes same-origin requests and the backend needs no CORS config. This is the production
+# equivalent of the dev-server proxy in vite.config.js — src/api/client.js fetches the
+# relative path ${APP_API_PREFIX}/... either way.
+#
+# This file is a TEMPLATE. The nginx image's /docker-entrypoint.d/20-envsubst-on-templates.sh
+# runs it through envsubst at container start and writes the result to
+# /etc/nginx/conf.d/default.conf, so the upstream host and the API prefix are configured at
+# run time, not build time.
+#
+# NGINX_ENVSUBST_FILTER (set in compose.yaml) scopes substitution to APP_* names.
+# The entrypoint passes envsubst an explicit variable list, so nginx's own lowercase
+# $host / $uri / $request_uri survive either way — the filter is there to keep it that
+# way if an env var ever collides with a variable used below.
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # The ledger CSV and settlements JSON arrive as multipart uploads; nginx's 1m
+    # default would 413 them before Spring ever saw the request.
+    client_max_body_size 25m;
+
+    # Docker's embedded DNS. Resolving through a variable (below) defers the lookup to
+    # request time — a literal proxy_pass host is resolved once at startup and the IP
+    # pinned, which breaks after `docker compose up --build` recreates the backend with
+    # a new IP. Note this bypasses /etc/hosts entirely, so APP_BACKEND_HOST must be a
+    # DNS-resolvable name (a Compose service name qualifies; host.docker.internal via
+    # extra_hosts would not).
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # APP_API_PREFIX comes from the repo-root .env — the same value Spring maps its
+    # controllers under and Vite bakes into the bundle.
+    location ${APP_API_PREFIX}/ {
+        # 8080 is the backend container's fixed listen port, reached over pay-recon-net.
+        # Deliberately not APP_BACKEND_PORT — that only publishes this port on the host.
+        set $backend_upstream http://${APP_BACKEND_HOST}:8080;
+
+        # $request_uri keeps the prefix and any query string, which is what the
+        # controllers are mapped under (app.custom.restcontroller.prefix).
+        proxy_pass $backend_upstream$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Reconciliation over a large import can outrun the 60s default.
+        proxy_connect_timeout 10s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
+    }
+
+    # Client-side routing: unknown paths fall back to the app shell rather than 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

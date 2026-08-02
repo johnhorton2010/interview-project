@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getReconciliations, runReconciliation } from './api/reconciliations.js';
 import { validateLedgerFile, uploadLedger } from './api/ledger.js';
 import { validateSettlementFile, parseAndValidateSettlements, uploadSettlements } from './api/settlements.js';
-import { summarizeStatuses } from './api/client.js';
+import { API_PREFIX, summarizeStatuses } from './api/client.js';
 import { runReset } from './api/reset.js';
 import { normalize } from './domain/normalize.js';
 import { C, MONO, INK, INK2, ACCENT } from './styles/tokens.js';
@@ -215,7 +215,7 @@ export default function App() {
 
   const onRefresh = async () => {
     await reload();
-    flash('Refreshed — GET /api/v1/reconciliations');
+    flash(`Refreshed — GET ${API_PREFIX}/reconciliations`);
   };
 
   const confirmReset = async () => {

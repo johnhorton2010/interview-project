@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { C, MONO, INK, INK2, POS, ACCENT, NEG } from '../styles/tokens.js';
 import { Btn } from './common.jsx';
+import { API_PREFIX } from '../api/client.js';
 
 function DropCard({ title, accept, noun, outcomesNoun, busy, result, entriesOpen, onToggleEntries, onFile, hint, endpointHint }) {
   const inputRef = useRef(null);
@@ -108,8 +109,8 @@ export default function ImportZone({ ledger, settle, run, reset, hasReport, impo
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: 18, alignItems: 'start' }}>
-        <DropCard title="Internal Ledger — CSV format" accept=".csv,text/csv" noun="transactions" outcomesNoun="transaction" busy={ledger.busy} result={ledger.result} entriesOpen={ledger.entriesOpen} onToggleEntries={ledger.onToggleEntries} onFile={ledger.onFile} hint=".csv" endpointHint="PUT /api/v1/ledger-transactions…" />
-        <DropCard title="Processor Settlements — JSON format" accept=".json,application/json" noun="settlements" outcomesNoun="settlement" busy={settle.busy} result={settle.result} entriesOpen={settle.entriesOpen} onToggleEntries={settle.onToggleEntries} onFile={settle.onFile} hint=".json" endpointHint="PUT /api/v1/processor-settlement-transactions…" />
+        <DropCard title="Internal Ledger — CSV format" accept=".csv,text/csv" noun="transactions" outcomesNoun="transaction" busy={ledger.busy} result={ledger.result} entriesOpen={ledger.entriesOpen} onToggleEntries={ledger.onToggleEntries} onFile={ledger.onFile} hint=".csv" endpointHint={`PUT ${API_PREFIX}/ledger-transactions…`} />
+        <DropCard title="Processor Settlements — JSON format" accept=".json,application/json" noun="settlements" outcomesNoun="settlement" busy={settle.busy} result={settle.result} entriesOpen={settle.entriesOpen} onToggleEntries={settle.onToggleEntries} onFile={settle.onFile} hint=".json" endpointHint={`PUT ${API_PREFIX}/processor-settlement-transactions…`} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 128 }}>
           <Btn onClick={run.onRun} disabled={run.disabled} style={{ border: `1px solid ${run.disabled ? C.border : ACCENT}`, background: run.disabled ? '#f8f9fb' : ACCENT, color: run.disabled ? '#aab3bf' : '#fff', padding: '11px 14px', fontSize: 13, fontWeight: 500, borderRadius: 6, cursor: run.disabled ? 'not-allowed' : 'pointer' }} hoverStyle={run.disabled ? null : { background: '#2a55bd' }}>

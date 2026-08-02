@@ -1,4 +1,4 @@
-// GET + POST /api/v1/reconciliations.
+// GET + POST <API_PREFIX>/reconciliations.
 
 import { apiGet, apiPost } from './client.js';
 

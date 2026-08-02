@@ -1,13 +1,18 @@
-// Thin fetch wrapper. All calls are made to the relative /api path so the Vite dev
+// Thin fetch wrapper. All calls are made to the relative API path so the Vite dev
 // proxy (see vite.config.js) forwards them to the backend without CORS. Any non-2xx
 // response is normalised into an Error carrying { status, body } (PRD C5).
 
-const PREFIX = '/api/v1';
+/**
+ * The path prefix every endpoint sits under. Injected at build time by vite.config.js
+ * from APP_API_PREFIX in the repo-root .env — the same value Spring maps its controllers
+ * under and the nginx proxy matches. Exported so nothing else has to repeat the literal.
+ */
+export const API_PREFIX = __API_PREFIX__;
 
 async function request(path, options = {}) {
   let res;
   try {
-    res = await fetch(PREFIX + path, options);
+    res = await fetch(API_PREFIX + path, options);
   } catch (networkErr) {
     const err = new Error('Could not reach the reconciliation service. Is the backend running on :8080?');
     err.cause = networkErr;
