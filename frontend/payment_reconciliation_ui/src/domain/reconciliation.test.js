@@ -2,7 +2,9 @@
 import { describe, it, expect } from 'vitest';
 import { normalize } from './normalize.js';
 import { figures, categorySummary, merchantRollup } from './selectors.js';
+import { CATS } from './categories.js';
 import { buildSamplePayload } from '../test/fixtures/sampleReconciliation.js';
+import { emptyPayload } from '../test/helpers/model.js';
 
 const model = normalize(buildSamplePayload());
 const f = figures(model);
@@ -78,6 +80,60 @@ describe('category summary — exact values (AC-20)', () => {
     expect(byKey.AMOUNT_MISMATCH.rawImpact).toBe(350);
     // QUARANTINE row is displayed but excluded from included totals (AC-20a)
     expect(byKey.QUARANTINE.totalCount).toBe(5); // 3 ledger + 2 settlement
+  });
+});
+
+describe('category summary — categories with no records', () => {
+  // The row list is the category vocabulary, not a projection of this dataset: a
+  // category the run found nothing for states its zero rather than vanishing, which
+  // would read as "not checked".
+  it('states every category at zero when nothing was reconciled', () => {
+    const { rows } = categorySummary(normalize(emptyPayload()));
+
+    expect(rows.map((c) => c.key).sort()).toEqual(Object.keys(CATS).sort());
+    rows.forEach((c) => {
+      expect(c.totalCount).toBe(0);
+      expect(c.rawSales).toBe(0);
+      expect(c.rawSettled).toBe(0);
+      expect(c.rawImpact).toBe(0);
+    });
+  });
+
+  it('keeps a category the dataset does not populate', () => {
+    // WIDE_WINDOW is absent from the sample payload's settlements but present here.
+    const withoutWide = {
+      ...model,
+      rows: model.rows.filter((r) => r.category !== 'WIDE_WINDOW'),
+      included: model.included.filter((r) => r.category !== 'WIDE_WINDOW'),
+      ledger: model.ledger.filter((l) => l.category !== 'WIDE_WINDOW'),
+      settle: model.settle.filter((s) => s.category !== 'WIDE_WINDOW'),
+    };
+    const wide = categorySummary(withoutWide).rows.find((c) => c.key === 'WIDE_WINDOW');
+
+    expect(wide).toBeDefined();
+    expect(wide.totalCount).toBe(0);
+    expect(wide.sides).toBe('0 / 0');
+    // A zero is a measured fact and prints as one — '—' stays reserved for a value
+    // that does not exist (styles/table.js).
+    expect(wide.sales).toBe('$0.00');
+    expect(wide.impact).toBe('$0.00');
+  });
+
+  it('states a leaked IN_PROGRESS record rather than dropping it from the totals', () => {
+    // IN_PROGRESS is a backend working state and is not in CATS, so a healthy run never
+    // reserves a row for it. One that arrives anyway is reported: `figures()` counts it
+    // toward the Total either way, so suppressing the category would leave the Total
+    // disagreeing with its own rows — hiding a backend bug instead of surfacing it.
+    const inProgress = { id: 'TXN-X', category: 'IN_PROGRESS', ledger: null, settlements: [], merchantId: 'M', rowImpact: 0 };
+    const withInProgress = { ...model, rows: model.rows.concat(inProgress), included: model.included.concat(inProgress) };
+
+    const { rows, totals } = categorySummary(withInProgress);
+    const leaked = rows.find((c) => c.key === 'IN_PROGRESS');
+
+    expect(leaked).toBeDefined();
+    expect(leaked.totalCount).toBe(1);
+    expect(leaked.label).toBe('IN_PROGRESS'); // raw, so it reads as the anomaly it is
+    expect(totals.totalCount).toBe(model.included.length + 1);
   });
 });
 

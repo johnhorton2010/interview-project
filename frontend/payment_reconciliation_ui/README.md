@@ -124,8 +124,14 @@ one file. Money is handled in integer cents throughout and formatted once, at re
   cold-load state — filters, sort, expanded row and tab are all reset (FR-9.4), so the
   next import cannot inherit a silent filter. The deletes return `{ record_count }`,
   which the dialog does not currently surface.
-- **Unknown categories** (e.g. a future `IN_PROGRESS`) are retained with a neutral badge
-  and the raw label rather than crashing — forward-compatible.
+- **Unknown categories** (e.g. a backend-internal `IN_PROGRESS`) are retained with a
+  neutral badge and the raw label rather than crashing — forward-compatible. None is
+  suppressed: the headline figures count such a record either way, so hiding its Summary
+  row would leave the Total disagreeing with the rows above it and mask the backend bug
+  that produced it.
+- **Every category gets a Summary row**, whether or not this dataset populates it. The
+  list comes from `CATS`, not from what arrived, and a category the run found nothing for
+  reads `0` and `$0.00` — an absent row would say "not checked", which is the opposite.
 - **Staleness**: importing after a report was rendered flags the report as stale
   (persisted to `sessionStorage`); reconciliation only runs on an explicit click.
 - **Deferred** (not in this pass): React Router deep-links, the density (compact) toggle.

@@ -2,7 +2,7 @@
 // function of the normalised model (PRD §7). If a number is wrong, it is wrong here.
 // Ported from the design component's figures()/categoryRows/merchantRows/matchRow.
 
-import { getCategory } from './categories.js';
+import { CATS, getCategory } from './categories.js';
 import { fmt, sfmt, neg, normAmt, amtStrings, dateMatches, isDateish } from './format.js';
 import { C, INK2, SEV_ORDER, SEV_COLOR, SEV_BG, SEV_BORDER } from '../styles/tokens.js';
 
@@ -43,12 +43,21 @@ export function figures(model) {
   };
 }
 
-/** Which categories to show, ordered by severity then label. */
-function presentCategories(model) {
-  const present = new Set();
-  model.rows.forEach((r) => present.add(r.category));
-  model.settle.forEach((x) => present.add(x.category));
-  return [...present]
+/** Every category the report can state, ordered by severity then label. */
+function summaryCategories(model) {
+  // Seeded with the full vocabulary, not with what this dataset happens to contain: a
+  // category with no records is a checked-and-clear result, and omitting its row makes
+  // that indistinguishable from a check that never ran.
+  const cats = new Set(Object.keys(CATS));
+  // Still unioned with what actually arrived, so a category this client does not know
+  // is reported rather than dropped (PRD §6.4, `getCategory`'s unknown branch). There is
+  // no exception to this, not even for a backend-internal state like IN_PROGRESS:
+  // `figures()` counts a leaked record toward the Total either way, so suppressing its
+  // category leaves the Total disagreeing with the rows above it — the summary quietly
+  // stops adding up at exactly the moment something is wrong.
+  model.rows.forEach((r) => cats.add(r.category));
+  model.settle.forEach((x) => cats.add(x.category));
+  return [...cats]
     .filter(Boolean)
     .sort(
       (a, b) =>
@@ -59,7 +68,7 @@ function presentCategories(model) {
 
 /** Category summary rows + totals (PRD §7.5). */
 export function categorySummary(model) {
-  const rows = presentCategories(model).map((k) => {
+  const rows = summaryCategories(model).map((k) => {
     const meta = getCategory(k);
     const ls = model.ledger.filter((l) => l.category === k);
     const ss = model.settle.filter((x) => x.category === k);
