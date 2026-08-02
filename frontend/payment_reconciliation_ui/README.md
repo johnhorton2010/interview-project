@@ -132,6 +132,11 @@ one file. Money is handled in integer cents throughout and formatted once, at re
 - **Every category gets a Summary row**, whether or not this dataset populates it. The
   list comes from `CATS`, not from what arrived, and a category the run found nothing for
   reads `0` and `$0.00` — an absent row would say "not checked", which is the opposite.
+  The Breaks and Transactions category filters follow the same rule via
+  `orderedCategories` (`domain/selectors.js`), each narrowed to what its tab can show:
+  Breaks drops clean matches and quarantine, Transactions drops quarantine. A menu
+  derived from the data goes empty exactly when nothing reconciled, which is when it is
+  least able to say whether the data is clean or the control is broken.
 - **Staleness**: importing after a report was rendered flags the report as stale
   (persisted to `sessionStorage`); reconciliation only runs on an explicit click.
 - **Deferred** (not in this pass): React Router deep-links, the density (compact) toggle.

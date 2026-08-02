@@ -43,22 +43,32 @@ export function figures(model) {
   };
 }
 
-/** Every category the report can state, ordered by severity then label. */
-function summaryCategories(model) {
-  // Seeded with the full vocabulary, not with what this dataset happens to contain: a
-  // category with no records is a checked-and-clear result, and omitting its row makes
-  // that indistinguishable from a check that never ran.
+/**
+ * The category vocabulary a view offers, ordered by severity then label.
+ *
+ * Seeded with the full vocabulary, not with what this dataset happens to contain: a
+ * category with no records is a checked-and-clear result, and offering no row (or no
+ * filter entry) for it makes that indistinguishable from a check that never ran.
+ *
+ * `present` is unioned in on top, so a category this client does not know is still
+ * offered rather than dropped (PRD §6.4, `getCategory`'s unknown branch). There is no
+ * exception to that, not even for a backend-internal state like IN_PROGRESS: `figures()`
+ * counts a leaked record either way, so suppressing its category leaves the Summary Total
+ * disagreeing with the rows above it — the report quietly stops adding up at exactly the
+ * moment something is wrong.
+ *
+ * `keep` narrows the result to the categories one view can actually show: Breaks excludes
+ * clean matches and quarantine, Transactions excludes quarantine, Summary shows all.
+ *
+ * @param {string[]} present  categories observed in the data (and any active filter)
+ * @param {(cat: string) => boolean} [keep]
+ */
+export function orderedCategories(present, keep = () => true) {
   const cats = new Set(Object.keys(CATS));
-  // Still unioned with what actually arrived, so a category this client does not know
-  // is reported rather than dropped (PRD §6.4, `getCategory`'s unknown branch). There is
-  // no exception to this, not even for a backend-internal state like IN_PROGRESS:
-  // `figures()` counts a leaked record toward the Total either way, so suppressing its
-  // category leaves the Total disagreeing with the rows above it — the summary quietly
-  // stops adding up at exactly the moment something is wrong.
-  model.rows.forEach((r) => cats.add(r.category));
-  model.settle.forEach((x) => cats.add(x.category));
+  present.forEach((c) => cats.add(c));
   return [...cats]
     .filter(Boolean)
+    .filter(keep)
     .sort(
       (a, b) =>
         SEV_ORDER[getCategory(a).sev] - SEV_ORDER[getCategory(b).sev] ||
@@ -68,7 +78,8 @@ function summaryCategories(model) {
 
 /** Category summary rows + totals (PRD §7.5). */
 export function categorySummary(model) {
-  const rows = summaryCategories(model).map((k) => {
+  const present = model.rows.map((r) => r.category).concat(model.settle.map((x) => x.category));
+  const rows = orderedCategories(present).map((k) => {
     const meta = getCategory(k);
     const ls = model.ledger.filter((l) => l.category === k);
     const ss = model.settle.filter((x) => x.category === k);

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
-import { matchAll, refOf, saleOf, refundOf } from '../../domain/selectors.js';
-import { getCategory } from '../../domain/categories.js';
+import { matchAll, refOf, saleOf, refundOf, orderedCategories } from '../../domain/selectors.js';
+import { getCategory, isBreakCategory } from '../../domain/categories.js';
 import { fmt, sfmt, neg, dec, decNeg, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
@@ -50,11 +50,11 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
   const breaks = model.included.filter((r) => r.category !== 'CLEAN_MATCH');
   const chipCounts = {};
   breaks.forEach((r) => (chipCounts[r.category] = (chipCounts[r.category] || 0) + 1));
-  // The menu lists what is here, plus whatever is already filtered on. Summary shows a
-  // row for every category including the empty ones, so arriving from one of those sets
-  // a filter that nothing in this list counts — and a filter you cannot see is a filter
-  // you cannot untick.
-  const catKeys = [...new Set([...Object.keys(chipCounts), ...catFilter])];
+  // Every break category, not just the ones this dataset produced: a filter control that
+  // offers nothing cannot say whether the data is clean or the control is broken. The
+  // active filter goes in too, so one arrived at from a zero-count Summary row is listed
+  // and untickable here — a filter you cannot see is a filter you cannot clear.
+  const catKeys = orderedCategories([...breaks.map((r) => r.category), ...catFilter], isBreakCategory);
 
   let filtered = breaks.filter((r) => {
     if (catFilter.length && !catFilter.includes(r.category)) return false;

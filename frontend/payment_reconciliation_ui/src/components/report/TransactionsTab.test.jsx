@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderTransactions, dataRows, summaryRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
+import { sampleModel, withoutCategory, quarantineOnlyPayload } from '../../test/helpers/model.js';
+import { normalize } from '../../domain/normalize.js';
 
 // Column order in both views: id, date, Merchant, Merchant ref, Sales, Refunds, Fees,
 // Exp pay, Settled, Discrepancy, Category.
@@ -146,6 +148,32 @@ describe('TransactionsTab', () => {
       const { table, user } = renderTransactions({ tx: { type: 'REFUND' } });
       await user.click(screen.getByRole('button', { name: 'All' }));
       expect(dataRows(table())).toHaveLength(16);
+    });
+
+    it('offers a category this dataset never produced, and never offers Quarantined', async () => {
+      // Same rule as the Summary rows: the menu is the vocabulary this tab can show, not
+      // a projection of the data. Quarantined records are never in `included`, so that
+      // checkbox could only ever match nothing — it belongs on its own tab.
+      const { table, user } = renderTransactions({ model: withoutCategory(sampleModel(), 'WIDE_WINDOW') });
+
+      await user.click(screen.getByRole('button', { name: /All categories/ }));
+      const wide = screen.getByRole('checkbox', { name: /Wide settlement window/ });
+      expect(wide.closest('label')).toHaveTextContent(/Wide settlement window\s*0/);
+      expect(screen.queryByRole('checkbox', { name: /Quarantined/ })).not.toBeInTheDocument();
+
+      await user.click(wide);
+      expect(dataRows(table())).toHaveLength(0);
+    });
+
+    it('stays populated when nothing reconciled at all', async () => {
+      // One quarantined record and nothing else — a data-derived menu would be empty.
+      const { user } = renderTransactions({ model: normalize(quarantineOnlyPayload()) });
+
+      await user.click(screen.getByRole('button', { name: /All categories/ }));
+
+      // Every category except QUARANTINE, clean matches included.
+      expect(screen.getAllByRole('checkbox')).toHaveLength(9);
+      expect(screen.getByRole('checkbox', { name: /Clean match/ })).toBeInTheDocument();
     });
 
     it('collapses the subtotals when a category filter empties the second band', async () => {

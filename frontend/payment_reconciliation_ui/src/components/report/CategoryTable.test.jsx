@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderCategories, dataRows, summaryRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
-import { sampleModel } from '../../test/helpers/model.js';
+import { sampleModel, withoutCategory } from '../../test/helpers/model.js';
 
 // Column order: Category, Severity, Total n, Ldgr / Stl, Sales, Refunds, Fees, Exp pay,
 // Settled, Discrepancy.
@@ -9,15 +9,6 @@ const CATEGORY = 0;
 const TOTAL_N = 2;
 const SALES = 4;
 const IMPACT = 9;
-
-/** The sample model with one category's records dropped from every side. */
-const without = (m, key) => ({
-  ...m,
-  ledger: m.ledger.filter((l) => l.category !== key),
-  settle: m.settle.filter((s) => s.category !== key),
-  rows: m.rows.filter((r) => r.category !== key),
-  included: m.included.filter((r) => r.category !== key),
-});
 
 const exportCsv = (table, user) =>
   user.click(within(table().closest('section')).getByRole('button', { name: 'Export CSV' }));
@@ -43,7 +34,7 @@ describe('CategoryTable', () => {
   it('keeps a category the dataset never populated, at zero', () => {
     // The check ran and found nothing, which is not the same as the check not running —
     // so the row states its zero instead of disappearing with the data.
-    const { table } = renderCategories({ model: without(sampleModel(), 'WIDE_WINDOW') });
+    const { table } = renderCategories({ model: withoutCategory(sampleModel(), 'WIDE_WINDOW') });
 
     expect(columnText(table(), CATEGORY)).toContain('Wide settlement window');
 

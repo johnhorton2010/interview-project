@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
-import { matchAll, refOf, figures, saleOf, refundOf } from '../../domain/selectors.js';
-import { getCategory } from '../../domain/categories.js';
+import { matchAll, refOf, figures, saleOf, refundOf, orderedCategories } from '../../domain/selectors.js';
+import { getCategory, QUARANTINE } from '../../domain/categories.js';
 import { fmt, sfmt, neg, dec, decNeg, shortRefOf, downloadCsv } from '../../domain/format.js';
-import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_ORDER, SEV_COLOR } from '../../styles/tokens.js';
+import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
@@ -172,9 +172,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const flip = tx.sortDir === 'asc' ? 1 : -1;
   const catCounts = {};
   model.included.forEach((r) => (catCounts[r.category] = (catCounts[r.category] || 0) + 1));
-  const catOptions = Object.keys(catCounts).sort(
-    (a, b) => SEV_ORDER[getCategory(a).sev] - SEV_ORDER[getCategory(b).sev] || getCategory(a).label.localeCompare(getCategory(b).label),
-  );
+  // Every category this tab can show, whether or not the dataset produced it — the same
+  // rule the Summary rows follow. QUARANTINE is the one exclusion: those records are on
+  // their own tab and never in `included`, so the checkbox could only ever match nothing.
+  const catOptions = orderedCategories([...model.included.map((r) => r.category), ...tx.cats], (k) => k !== QUARANTINE);
 
   // ---- ledger view rows
   const ledgerCmp = {
@@ -544,7 +545,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                         <SevDot color={SEV_COLOR[getCategory(k).sev]} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(k).label}</span>
                       </span>
-                      <span style={{ fontFamily: MONO, fontSize: 11, color: C.dim }}>{catCounts[k]}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 11, color: C.dim }}>{catCounts[k] || 0}</span>
                     </label>
                   );
                 })}

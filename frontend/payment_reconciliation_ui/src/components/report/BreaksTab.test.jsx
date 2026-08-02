@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderBreaks, dataRows, summaryRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
+import { sampleModel, withoutCategory, quarantineOnlyPayload } from '../../test/helpers/model.js';
+import { normalize } from '../../domain/normalize.js';
 
 // Column order: Category, Merchant, Merchant ref, Sales, Refunds, Fees, Exp pay, Settled,
 // Discrepancy, Captured on, Settled on.
@@ -161,6 +163,35 @@ describe('BreaksTab', () => {
 
       await user.click(screen.getByRole('button', { name: 'Done' }));
       expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
+    });
+
+    it('offers a category this dataset never produced, at zero', async () => {
+      // The menu is the vocabulary of break categories, not a projection of the data —
+      // a control that offers nothing cannot say whether the data is clean or the
+      // control is broken.
+      const { table, user } = renderBreaks({ model: withoutCategory(sampleModel(), 'WIDE_WINDOW') });
+
+      await user.click(screen.getByRole('button', { name: /All categories/ }));
+      const wide = screen.getByRole('checkbox', { name: /Wide settlement window/ });
+      expect(wide.closest('label')).toHaveTextContent(/Wide settlement window\s*0/);
+
+      await user.click(wide);
+      expect(dataRows(table())).toHaveLength(0);
+      expect(screen.getByText('No breaks match these filters.')).toBeInTheDocument();
+      expect(screen.getByText(/category: Wide settlement window/)).toBeInTheDocument();
+    });
+
+    it('stays populated when nothing reconciled at all', async () => {
+      // The case that prompted this: one quarantined record and nothing else. Breaks are
+      // empty, so a data-derived menu would offer nothing at all.
+      const { user } = renderBreaks({ model: normalize(quarantineOnlyPayload()) });
+
+      await user.click(screen.getByRole('button', { name: /All categories/ }));
+
+      expect(screen.getAllByRole('checkbox')).toHaveLength(8); // every break category
+      // Neither of the two non-break categories belongs on this tab.
+      expect(screen.queryByRole('checkbox', { name: /Clean match/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: /Quarantined/ })).not.toBeInTheDocument();
     });
   });
 
