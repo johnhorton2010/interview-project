@@ -66,3 +66,10 @@ tasks.jacocoTestReport {
 tasks.named<Jar>("jar") {
 	enabled = false
 }
+
+// bootRun is local-dev only — the image builds bootJar and runs `java -jar` with no active
+// profile — so it defaults to the `local` profile, which points the datasource at
+// localhost instead of the `db` service name that only works on a docker network.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	environment("SPRING_PROFILES_ACTIVE", System.getenv("SPRING_PROFILES_ACTIVE") ?: "local")
+}

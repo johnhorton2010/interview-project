@@ -1,3 +1,60 @@
+# Running It
+
+Copy the environment template and fill in a database username and password:
+
+```bash
+cp .env.example .env
+```
+
+### Full stack, in Docker
+
+```bash
+docker compose up --build
+```
+
+Brings up Postgres, the Spring Boot backend and an nginx-served production build of the React UI. The UI is on **http://localhost:6342** (`APP_FRONTEND_PORT`).
+
+### Local backend against the containerised database
+
+For a fast edit/restart loop - hot restart, a debugger, an IDE run configuration then run Spring Boot on the host and let it talk to the Postgres container over its published port:
+
+```bash
+docker compose up -d db                                 # database only in detached mode
+
+cd backend/payment_reconciliation && ./gradlew bootRun   # backend on :8080
+
+cd frontend/payment_reconciliation_ui && npm install && npm run dev   # Vite on :5173
+```
+
+Then open **http://localhost:5173**.
+
+
+
+A few things worth knowing about this path:
+
+- **`bootRun` activates the `local` Spring profile automatically.**
+
+- **Running from an IDE?** Set the run configuration's working directory to `backend/payment_reconciliation`, and add `SPRING_PROFILES_ACTIVE=local` to its environment.
+
+### Clearing data
+
+Data may be reset through the frontend app through the reset button.
+
+It can also be reset by deleting the docker volume the database uses to persist data.
+
+```bash
+docker compose down -v
+```
+
+### Tests
+
+```bash
+cd backend/payment_reconciliation && ./gradlew test        # JUnit + JaCoCo report
+cd frontend/payment_reconciliation_ui && npm test          # Vitest
+```
+
+The backend suite runs against in-memory H2 and needs no containers.
+
 # Settlement Reconciliation
 
 Thanks for your interest in the role. This is a take-home exercise meant to be done in **your own environment, on your own schedule** - we've found that gives you the best chance to show how you actually work. Plan for roughly **3–5 hours**. It is not a race, and it is not meant to be gold-plated; we care far more about the quality of what you build than the quantity.
@@ -34,10 +91,10 @@ Implement it however you like. That said - see [Stack](#stack) for what would fi
 
 Two datasets are provided:
 
-| Directory | Purpose                                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Directory | Purpose                                                                                                                                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `test/`   | Small, hand-verifiable. `test/EXPECTED.md` gives the correct counts for **every** category - including orphan refunds, split settlements, wide-window timing, and malformed rows - so you can check your full pipeline as you go. |
-| `data/`   | Larger, realistic set with breaks of every category mixed in. This is what a "real" day looks like.                       |
+| `data/`   | Larger, realistic set with breaks of every category mixed in. This is what a "real" day looks like.                                                                                                                               |
 
 Both sets include a few deliberately malformed rows - a missing field, a non-numeric amount, an unexpected currency, and the like. Quarantine them gracefully rather than letting them crash the run; they are not breaks and must not appear in any break count.
 
@@ -45,17 +102,17 @@ Both sets include a few deliberately malformed rows - a missing field, a non-num
 
 ### `internal_transactions.csv` - our ledger (CSV)
 
-| Column            | Notes                                                                           |
-| ----------------- | ------------------------------------------------------------------------------- |
-| `internal_txn_id` | Our primary key. **Does not appear anywhere in the settlement file.**           |
-| `merchant_id`     | e.g. `MERCH-004`                                                                |
+| Column            | Notes                                                                                                                                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal_txn_id` | Our primary key. **Does not appear anywhere in the settlement file.**                                                                                                                                          |
+| `merchant_id`     | e.g. `MERCH-004`                                                                                                                                                                                               |
 | `merchant_ref`    | Our order reference. The processor _usually_ echoes this back - but not always. A REFUND reuses its original sale's reference, so a refunded order shows up as a SALE row and a REFUND row sharing this value. |
-| `card_type`       | `VISA`, `MASTERCARD`, `AMEX`, `DISCOVER`                                        |
-| `card_last4`      | Last four of the card                                                           |
-| `gross_amount`    | The full amount, **before fees**. Negative for refunds.                         |
-| `currency`        | `USD`                                                                           |
-| `type`            | `SALE` or `REFUND`                                                              |
-| `captured_at`     | ISO 8601, when we captured the payment                                          |
+| `card_type`       | `VISA`, `MASTERCARD`, `AMEX`, `DISCOVER`                                                                                                                                                                       |
+| `card_last4`      | Last four of the card                                                                                                                                                                                          |
+| `gross_amount`    | The full amount, **before fees**. Negative for refunds.                                                                                                                                                        |
+| `currency`        | `USD`                                                                                                                                                                                                          |
+| `type`            | `SALE` or `REFUND`                                                                                                                                                                                             |
+| `captured_at`     | ISO 8601, when we captured the payment                                                                                                                                                                         |
 
 ### `processor_settlement.json` - the processor (JSON array)
 
