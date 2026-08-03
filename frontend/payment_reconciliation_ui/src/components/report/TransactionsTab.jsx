@@ -4,7 +4,7 @@ import { getCategory, QUARANTINE } from '../../domain/categories.js';
 import { fmt, sfmt, neg, dec, decNeg, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
-import { useWindowedRows, useRowMetrics } from '../../hooks/useWindowedRows.js';
+import { useWindowedRows, useRowMetrics, rowHeight } from '../../hooks/useWindowedRows.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
 import { SortHeader, BandLabel, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
@@ -53,7 +53,7 @@ const SectionHeader = ({ children, labels, overrides, help, template, gap, col }
 // down here can widen the column it sits under — a second item just overflows into
 // the next one. Anything that needs to sit beside a value belongs in the row.
 const Subline = ({ text, label, display, onToggle, flash, disabled }) => (
-  <div data-row-sub onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
+  <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
     {disabled ? (
       <span>{display}</span>
     ) : (
@@ -214,13 +214,13 @@ const idCell = (key, colStyle, flash, display, text, label, part) => (
  * Hover lives on the wrapper so the cells, the subline and the expanded detail all tint
  * together as one row (design lines 540/560, 643/663).
  */
-function RowShell({ rowKey, rowIndex, open, template, gap, cells, row, model, subline, flash, onToggle }) {
+function RowShell({ rowKey, rowIndex, shape, open, template, gap, cells, row, model, subline, flash, onToggle }) {
   const toggle = useCallback(() => onToggle(rowKey), [onToggle, rowKey]);
   return (
-    // `data-row-h` / `data-row-open` are what useRowMetrics measures: windowing needs a
-    // real row height, and a constant here would desync from the type scale the first
-    // time either it or the row padding changed.
-    <HoverRow data-row-h data-row-open={open || undefined} style={rowRule} hoverStyle={{ background: C.hover }}>
+    // `data-row-shape` / `data-row-open` are what useRowMetrics measures. A row with a
+    // subline is taller than one without, and windowing needs that height to be real
+    // rather than assumed — see the hook.
+    <HoverRow data-row-shape={shape} data-row-open={open || undefined} style={rowRule} hoverStyle={{ background: C.hover }}>
       <div role="row" aria-rowindex={rowIndex} aria-expanded={open} onClick={toggle} style={{ ...bodyRow(template, gap), background: open ? C.hover : 'transparent', alignItems: 'center' }}>
         {cells}
       </div>
@@ -257,6 +257,7 @@ const LedgerRow = React.memo(function LedgerRow({ r, rowIndex, open, template, g
     <RowShell
       rowKey={r.id}
       rowIndex={rowIndex}
+      shape={r.ledger ? 'sub' : 'plain'}
       open={open}
       template={template}
       gap={gap}
@@ -319,6 +320,7 @@ const SettleRow = React.memo(function SettleRow({ o, carrierPart, rowIndex, open
     <RowShell
       rowKey={x.ref}
       rowIndex={rowIndex}
+      shape={r.ledger ? 'sub' : 'plain'}
       open={open}
       template={template}
       gap={gap}
@@ -354,6 +356,7 @@ const NeverSettledRow = React.memo(function NeverSettledRow({ r, rowIndex, open,
     <RowShell
       rowKey={r.id}
       rowIndex={rowIndex}
+      shape="plain"
       open={open}
       template={template}
       gap={gap}
@@ -690,24 +693,29 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // length is at worst a glyph or two out — comfortably inside the slack floor.
   const candidates = useMemo(() => {
     const text = new Array(LSPEC.length).fill('');
-    const mag = new Array(LSPEC.length).fill(0);
-    const signed = new Array(LSPEC.length).fill(false);
+    // Two magnitudes per money column: the widest that prints bare, and the widest that
+    // prints behind a sign. Keeping them apart is what stops a column reserving room for
+    // a minus that only ever appears on a smaller figure — one glyph, but a visible one.
+    const bare = new Array(LSPEC.length).fill(-1);
+    const signed = new Array(LSPEC.length).fill(-1);
 
     const t = (i, s) => {
       if (s && s.length > text[i].length) text[i] = s;
     };
+    const widen = (arr, i, v) => {
+      if (v > arr[i]) arr[i] = v;
+    };
+    /** Sales, Exp pay, Settled: `fmt` signs only a negative. */
     const m = (i, v) => {
       if (v === null || v === undefined) return;
-      const a = Math.abs(v);
-      if (a > mag[i]) mag[i] = a;
-      if (v < 0) signed[i] = true;
+      widen(v < 0 ? signed : bare, i, Math.abs(v));
     };
-    // Refunds and Fees print through `neg`, so any non-zero value carries a minus
-    // whatever sign it is stored with; Discrepancy prints through `sfmt`, which signs a
-    // positive too. A sign is a glyph the column has to fit.
+    /** Refunds and Fees print through `neg`, which signs every non-zero value however it
+     *  is stored; Discrepancy prints through `sfmt`, which signs a positive too. Either
+     *  way a zero prints bare as $0.00. */
     const mNeg = (i, v) => {
-      m(i, v);
-      if (v) signed[i] = true;
+      if (v === null || v === undefined) return;
+      widen(v ? signed : bare, i, Math.abs(v));
     };
     // The four ledger-side figures, identical in both views.
     const txnMoney = (r) => {
@@ -777,7 +785,12 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     });
     t(11, '▾');
 
-    return LSPEC.map((c, i) => (MONEY_COLS.has(i) ? (signed[i] ? '−' : '') + fmt(mag[i]) : text[i]));
+    return LSPEC.map((c, i) => {
+      if (!MONEY_COLS.has(i)) return text[i];
+      const a = bare[i] < 0 ? '' : fmt(bare[i]);
+      const b = signed[i] < 0 ? '' : '−' + fmt(signed[i]);
+      return b.length > a.length ? b : a;
+    });
   }, [settleCentric, ledgerRows, orphanRows, settleRows, neverSettled, totals, split, grandCount]);
 
   // `fontKey` is the view: it is the only thing that changes a column's font here — the
@@ -807,12 +820,12 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // At most one row is ever expanded — App holds a single key — so no per-row measurement
   // cache is needed: the open row is the only one taller than its neighbours.
   //
-  // Sublines are what make the heights non-uniform otherwise. Every row of the ledger
-  // band carries one (the band is `txVisible.filter(r => r.ledger)` and the subline is
-  // gated on exactly that); a settlement row carries one only when its transaction has a
-  // ledger side; neither trailing band carries any.
-  const rowHeight = useCallback((hasSub, open) => H.base + (hasSub ? H.sub : 0) + (open ? H.detail : 0), [H]);
-  const metricSig = `${H.base}|${H.sub}|${H.detail}`;
+  // The subline is the only other thing that varies, and it is the shape each row already
+  // declares to useRowMetrics. Every row of the ledger band carries one (the band is
+  // `txVisible.filter(r => r.ledger)` and the subline is gated on exactly that); a
+  // settlement row carries one only when its transaction has a ledger side; neither
+  // trailing band carries any.
+  const metricSig = JSON.stringify(H);
 
   const band1Rows = settleCentric ? settleRows : ledgerRows;
   const band1 = useWindowedRows({
@@ -821,10 +834,10 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
       (i) => {
         const o = band1Rows[i];
         return settleCentric
-          ? rowHeight(!!o.r.ledger, o.x.ref === expanded)
-          : rowHeight(true, o.id === expanded);
+          ? rowHeight(H, o.r.ledger ? 'sub' : 'plain', o.x.ref === expanded)
+          : rowHeight(H, 'sub', o.id === expanded);
       },
-      [band1Rows, settleCentric, expanded, rowHeight],
+      [band1Rows, settleCentric, expanded, H],
     ),
     sig: `${tx.view}|1|${band1Rows.length}|${expanded}|${metricSig}`,
     ref: band1Ref,
@@ -835,8 +848,8 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const band2 = useWindowedRows({
     count: band2Rows.length,
     heightOf: useCallback(
-      (i) => rowHeight(false, band2Rows[i].id === expanded),
-      [band2Rows, expanded, rowHeight],
+      (i) => rowHeight(H, 'plain', band2Rows[i].id === expanded),
+      [band2Rows, expanded, H],
     ),
     sig: `${tx.view}|2|${band2Rows.length}|${expanded}|${metricSig}`,
     ref: band2Ref,

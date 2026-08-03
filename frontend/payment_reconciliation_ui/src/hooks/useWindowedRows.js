@@ -26,7 +26,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 export const WINDOW_MIN = 120;
 
 /** First-paint guesses, replaced by measurement before the user can see them. */
-const EST = { base: 38, sub: 18, detail: 260 };
+const EST = { row: 38, detail: 260 };
 
 /** Largest `i` in [0, count-1] whose row starts at or above `y`. */
 function indexAt(offsets, count, y) {
@@ -41,70 +41,77 @@ function indexAt(offsets, count, y) {
   return lo;
 }
 
-function firstWith(root, attr) {
-  return root.querySelector(`[${attr}]`);
-}
-
 /**
- * Row geometry, measured off whatever is currently rendered.
+ * Row heights, measured off whatever is currently rendered, keyed by row *shape*.
  *
- * Three numbers, because a body row is a row plus an optional subline plus — for at most
- * one row at a time — an expanded detail. `base` is a row *without* its subline, so the
- * two compose: a row's height is `base + (subline ? sub : 0) + (open ? detail : 0)`.
+ * Rows in these tables are not uniform: one carries a subline of ids beneath it and the
+ * next does not, a merchant-ref cell may run to a second line, and at most one row at a
+ * time is expanded. Rather than enumerate those variations here — which would put layout
+ * knowledge in the wrong file and go stale the moment a cell changed — each row declares
+ * its own shape with `data-row-shape`, and this measures one representative of each shape
+ * it finds. A shape is whatever the caller says makes two rows differ in height.
  *
- * Measured rather than hard-coded because these follow the type scale and the row
- * padding, and a constant here would silently desync the scroll geometry from the layout
- * the first time either changed. `detail` is retained after the expanded row closes: the
- * last real measurement is a better guess than the estimate.
+ * Measured rather than hard-coded because these heights follow the type scale and the row
+ * padding; a constant would silently desync the scroll geometry from the layout the first
+ * time either changed. Every measurement is retained once taken, including `detail` after
+ * its row closes: the last real measurement beats the estimate.
  *
- * @param {{current: HTMLElement|null}} ref  the `role="table"` wrapper
+ * @param {{current: HTMLElement|null}} ref  the table wrapper
  * @param {string} sig  changes whenever the rendered rows might have changed shape
+ * @returns {{ shapes: Record<string, number>, detail: number }}
  */
 export function useRowMetrics(ref, sig) {
-  const [metrics, setMetrics] = useState(EST);
-  const last = useRef(EST);
+  const [metrics, setMetrics] = useState(() => ({ shapes: {}, detail: EST.detail }));
+  const last = useRef(metrics);
 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const next = { ...last.current };
+    const shapes = { ...last.current.shapes };
+    let { detail } = last.current;
+    let changed = false;
+    let open = null;
 
-    const subEl = firstWith(el, 'data-row-sub');
-    if (subEl) {
-      const h = subEl.getBoundingClientRect().height;
-      if (h > 0) next.sub = h;
-    }
-
-    // jsdom performs no layout and reports every height as 0, so each measurement only
-    // replaces its estimate when it comes back positive.
-    const rows = el.querySelectorAll('[data-row-h]');
-    let openEl = null;
-    let plainEl = null;
-    rows.forEach((row) => {
-      if (row.hasAttribute('data-row-open')) openEl = openEl || row;
-      else plainEl = plainEl || row;
+    el.querySelectorAll('[data-row-shape]').forEach((row) => {
+      const key = row.getAttribute('data-row-shape');
+      const h = row.getBoundingClientRect().height;
+      // jsdom performs no layout and reports every height as 0, so a measurement only
+      // counts when it comes back positive.
+      if (h <= 0) return;
+      // An expanded row's height includes its detail panel, so it cannot stand in for its
+      // shape — it is the one row that tells us what the panel costs instead.
+      if (row.hasAttribute('data-row-open')) {
+        open = open || { key, h };
+        return;
+      }
+      // Sub-pixel noise must not provoke a render, or the effect that reads this result
+      // becomes a loop.
+      if (shapes[key] === undefined || Math.abs(shapes[key] - h) > 0.5) {
+        shapes[key] = h;
+        changed = true;
+      }
     });
 
-    if (plainEl) {
-      const h = plainEl.getBoundingClientRect().height;
-      if (h > 0) next.base = h - (firstWith(plainEl, 'data-row-sub') ? next.sub : 0);
-    }
-    if (openEl) {
-      const h = openEl.getBoundingClientRect().height;
-      const own = next.base + (firstWith(openEl, 'data-row-sub') ? next.sub : 0);
-      if (h - own > 0) next.detail = h - own;
+    if (open && shapes[open.key] > 0) {
+      const d = open.h - shapes[open.key];
+      if (d > 0 && Math.abs(d - detail) > 0.5) {
+        detail = d;
+        changed = true;
+      }
     }
 
-    // Sub-pixel noise must not provoke a render, or the effect that reads the result
-    // becomes a loop.
-    const moved = ['base', 'sub', 'detail'].some((k) => Math.abs(next[k] - last.current[k]) > 0.5);
-    if (moved) {
-      last.current = next;
-      setMetrics(next);
+    if (changed) {
+      last.current = { shapes, detail };
+      setMetrics(last.current);
     }
   }, [ref, sig]);
 
   return metrics;
+}
+
+/** Height of a row of `shape`, falling back to the estimate until it has been measured. */
+export function rowHeight(metrics, shape, open) {
+  return (metrics.shapes[shape] || EST.row) + (open ? metrics.detail : 0);
 }
 
 /**
@@ -146,7 +153,7 @@ export function useWindowedRows({ count, heightOf, sig, ref, overscan = 8 }) {
   // page is at the top of the band, so only `end` can be wrong, never `start`.
   const [range, setRange] = useState(() => ({
     start: 0,
-    end: windowed ? Math.min(count, Math.ceil((globalThis.innerHeight || 900) / EST.base) + overscan + 1) : count,
+    end: windowed ? Math.min(count, Math.ceil((globalThis.innerHeight || 900) / EST.row) + overscan + 1) : count,
   }));
   const current = useRef(range);
 

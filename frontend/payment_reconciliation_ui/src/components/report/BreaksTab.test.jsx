@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderBreaks, dataRows, summaryRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
-import { sampleModel, withoutCategory, quarantineOnlyPayload } from '../../test/helpers/model.js';
+import { sampleModel, largeModel, withoutCategory, quarantineOnlyPayload } from '../../test/helpers/model.js';
 import { normalize } from '../../domain/normalize.js';
 
 // Column order: Category, Merchant, Merchant ref, Sales, Refunds, Fees, Exp pay, Settled,
@@ -346,6 +346,45 @@ describe('BreaksTab', () => {
       await exportCsv(user);
 
       expect(flash).toHaveBeenCalledWith('breaks.csv — 1 rows');
+    });
+  });
+  // The paths that only engage past WINDOW_MIN rows. jsdom performs no layout, so the row
+  // metrics stay at their estimates — which is the guard being relied on here, and enough
+  // to exercise the geometry.
+  describe('at scale', () => {
+    // Built once: `normalize` is pure and no component mutates the model.
+    const big = largeModel(2000);
+    const breakCount = big.included.filter((r) => r.category !== 'CLEAN_MATCH').length;
+
+    it('renders a window onto the breaks, not all of them', () => {
+      const { table } = renderBreaks({ model: big });
+
+      expect(breakCount).toBeGreaterThan(120); // past the windowing threshold
+      expect(dataRows(table()).length).toBeLessThan(120);
+      expect(footer()).toHaveTextContent(`${breakCount} of ${breakCount} breaks`);
+    });
+
+    it('tells assistive tech how long the table really is', () => {
+      const { table } = renderBreaks({ model: big });
+      expect(table()).toHaveAttribute('aria-rowcount', String(breakCount + 1));
+    });
+
+    it('sizes its columns off the data, so the total row cannot clip', () => {
+      const { table } = renderBreaks({ model: big });
+      const cells = within(summaryRows(table())[0]).getAllByRole('cell');
+      // Label, then the six money columns — each a whole figure, not a truncation.
+      expect(cells[0].textContent).toBe('Total');
+      expect(cells[1].textContent).toMatch(/^\$[\d,]+\.\d\d$/);
+      expect(cells.at(-1).textContent).toMatch(/^[+−]\$[\d,]+\.\d\d$/);
+    });
+
+    it('exports every filtered break, not the rendered window', async () => {
+      const { user, flash } = renderBreaks({ model: big });
+      await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+      const csv = await lastDownload();
+      expect(csv.lines.length).toBeGreaterThan(breakCount); // header + >= one line per break
+      expect(flash).toHaveBeenCalledWith(expect.stringContaining(`${breakCount} breaks over`));
     });
   });
 });
