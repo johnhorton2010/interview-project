@@ -50,7 +50,7 @@ function ledgerFieldsOf(r) {
       false,
       r.settlements.some((s) => s.cardType !== l.cardType || s.cardLast4 !== l.cardLast4),
     ),
-    fieldRow('Gross amount', fmt(l.gross), true, l.category === 'FEE_DISCREPANCY' || l.category === 'AMOUNT_MISMATCH'),
+    fieldRow('Gross amount', fmt(l.gross), true, l.category === 'AMOUNT_MISMATCH'),
     fieldRow('Type', l.type === 'SALE' ? 'Sale' : 'Refund', false, false),
     fieldRow('Captured', l.capturedAt, true, l.category === 'WIDE_WINDOW'),
     fieldRow('Currency', l.currency, false, r.settlements.some((s) => s.currency !== l.currency)),
