@@ -9,18 +9,15 @@ import tools.jackson.databind.ValueSerializer;
 /**
  * Writes a {@link ProcessorSettlement} used as a map key as its network reference alone.
  *
- * <p>The settlement-side counterpart to {@code InternalTransactionKeyDeserializer}, for the same
+ * <p>The settlement-side counterpart to {@link InternalTransactionToKeySerializer}, for the same
  * reason: JSON object keys must be scalars, and {@code networkRef} already defines the
  * settlement's equality.
- *
- * <p>Note the name: despite {@code Deserializer}, this is a serializer. The name is retained
- * because it is referenced by annotation from the model types.
  *
  * <p>Stateless and therefore thread-safe.
  *
  * @author John
  */
-public class ProcessorSettlementKeyDeserializer extends ValueSerializer<ProcessorSettlement> {
+public class ProcessorSettlementToKeySerializer extends ValueSerializer<ProcessorSettlement> {
 
     /**
      * Writes the settlement's network reference as the current field name.

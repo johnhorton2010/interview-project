@@ -11,10 +11,8 @@
  * <p>On the wire side, a family of serializers reduces transactions and settlements to their
  * identifiers. In key position this is unavoidable, since JSON object keys must be scalars; in
  * value position it is a size decision, because one transaction can appear in several views of a
- * single response.
- *
- * <p>Two of these classes are named {@code KeyDeserializer} but are in fact serializers. The names
- * are load-bearing, being referenced by annotation from the model types.
+ * single response. The two cases are named accordingly: {@code XToKeySerializer} writes one object
+ * as one key, while {@code XSetToKeySerializer} writes a whole collection as an array of keys.
  *
  * @author John
  */

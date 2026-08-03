@@ -13,15 +13,14 @@ import tools.jackson.databind.ValueSerializer;
  * position. Reducing it to {@code internalTxnId} loses nothing, because that identifier already
  * defines the transaction's equality &mdash; the key was never distinguishing more than this.
  *
- * <p>Note the name: despite {@code Deserializer}, this is a serializer, extending
- * {@link ValueSerializer} and writing rather than reading. The name is retained because it is
- * referenced by annotation from the model types.
+ * <p>The single-value counterpart to {@code InternalTransactionSetToKeySerializer}, which reduces
+ * a whole collection to an array of the same identifiers.
  *
  * <p>Stateless and therefore thread-safe.
  *
  * @author John
  */
-public class InternalTransactionKeyDeserializer extends ValueSerializer<InternalTransaction> {
+public class InternalTransactionToKeySerializer extends ValueSerializer<InternalTransaction> {
 
     /**
      * Writes the transaction's identifier as the current field name.

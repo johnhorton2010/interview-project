@@ -2,8 +2,8 @@ package com.platinumrelations.interview.payment_reconciliation.reconciliation.mo
 
 import com.platinumrelations.interview.payment_reconciliation.ledger.model.InternalTransaction;
 import com.platinumrelations.interview.payment_reconciliation.processor.model.ProcessorSettlement;
-import com.platinumrelations.interview.payment_reconciliation.reconciliation.util.InternalTransactionKeyDeserializer;
-import com.platinumrelations.interview.payment_reconciliation.reconciliation.util.ProcessorSettlementKeyDeserializer;
+import com.platinumrelations.interview.payment_reconciliation.reconciliation.util.InternalTransactionToKeySerializer;
+import com.platinumrelations.interview.payment_reconciliation.reconciliation.util.ProcessorSettlementToKeySerializer;
 import tools.jackson.databind.annotation.JsonSerialize;
 
 import java.util.Map;
@@ -43,9 +43,9 @@ import java.util.Set;
  * @author John
  */
 public record TransactionMapping(
-        @JsonSerialize(keyUsing = InternalTransactionKeyDeserializer.class)
+        @JsonSerialize(keyUsing = InternalTransactionToKeySerializer.class)
         Map<InternalTransaction, Set<ProcessorSettlement>> internalTransactionToProcessorSettlementsMap,
-        @JsonSerialize(keyUsing = ProcessorSettlementKeyDeserializer.class)
+        @JsonSerialize(keyUsing = ProcessorSettlementToKeySerializer.class)
         Map<ProcessorSettlement, Set<InternalTransaction>> processorSettlementToInternalTransactionsMap,
         Map<String, TransactionPairing> merchantRefToTransactionKeysMap) {
 

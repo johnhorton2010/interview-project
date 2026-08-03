@@ -38,7 +38,7 @@ public class HolidayDateParsingAnalyzer extends AbstractFailureAnalyzer<HolidayD
         log.error("Startup failure intercepted by HolidayDateParsingAnalyzer: {}", cause.getMessage(), cause);
 
         String description = "A date has failed to parse in the list of holiday dates.";
-        String action = "Please check the application.properties file to ensure the app.custom.holidays property is a comma seperated list of dates in YYYY-MM-DD format.";
+        String action = "Please check the application.properties file to ensure the app.custom.holidays property is a comma separated list of dates in YYYY-MM-DD format.";
 
         return new FailureAnalysis(description, action, cause);
     }
