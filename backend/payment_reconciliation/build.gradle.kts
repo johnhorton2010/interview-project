@@ -73,3 +73,19 @@ tasks.named<Jar>("jar") {
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
 	environment("SPRING_PROFILES_ACTIVE", System.getenv("SPRING_PROFILES_ACTIVE") ?: "local")
 }
+
+tasks.javadoc {
+	destinationDir = file("$buildDir/custom-javadoc-path")
+
+	options {
+		encoding = "UTF-8"
+		this as StandardJavadocDocletOptions
+		charSet("UTF-8")
+		author(true)
+		version(true)
+		addBooleanOption("html5", true)
+		addBooleanOption("Xdoclint:none", true)
+	}
+
+	isFailOnError = false
+}

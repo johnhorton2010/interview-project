@@ -15,16 +15,47 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
+/**
+ * REST endpoints for loading and clearing the merchant's internal ledger.
+ *
+ * <p>Mounted under the configurable {@code app.custom.restcontroller.prefix} so the API version
+ * prefix is a deployment concern rather than something compiled into each controller.
+ *
+ * <p>Failures are not caught here; they propagate to
+ * {@code GlobalRestControllerExceptionHandler}, which maps them to the shared error payload. The
+ * OpenAPI annotations describe only the success responses for that reason.
+ *
+ * @author John
+ */
 @RestController
 @RequestMapping(value = "${app.custom.restcontroller.prefix}/ledger-transactions")
 public class LedgerController {
 
+    /**
+     * Creates the controller.
+     *
+     * @param ledgerService service performing the parse-and-store work
+     */
     public LedgerController(LedgerService ledgerService){
         this.ledgerService = ledgerService;
     }
 
+    /** Service this controller delegates all ledger work to. */
     final private LedgerService ledgerService;
 
+    /**
+     * Bulk-loads ledger transactions from an uploaded CSV file.
+     *
+     * <p>Mapped to {@code PUT} rather than {@code POST} because the operation is idempotent: a
+     * transaction already stored is reported as {@code NO_CHANGE} and left untouched, so
+     * re-sending the same file has no further effect. The per-row result is returned instead of a
+     * bare count so the caller can tell exactly which transactions were new.
+     *
+     * @param file the {@code file} part of the multipart request, a CSV with a header row
+     * @return {@code 200 OK} with a map from {@code internalTxnId} to the outcome for that row
+     * @throws com.platinumrelations.interview.payment_reconciliation.ledger.exception.LedgerCsvParsingException
+     *         if the file cannot be parsed, surfacing as {@code 400 Bad Request}
+     */
     @Operation(summary = "Attempt to create Ledger Internal Transactions")
     @ApiResponse(responseCode = "200", description = "Created a new Ledger Internal Transaction or no change if an individual transaction already exists",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -54,6 +85,14 @@ public class LedgerController {
         return ResponseEntity.ok(ledgerService.bulkCreateLedgerInternalTransactions(file));
     }
 
+    /**
+     * Deletes every stored ledger transaction.
+     *
+     * <p>Unconditional and unfiltered; provided to reset the ledger between runs against different
+     * data sets. Settlements and recorded reconciliation results are not affected.
+     *
+     * @return {@code 200 OK} wrapping the number of transactions deleted
+     */
     @Operation(summary = "Deletes all existing Ledger Transactions")
     @ApiResponse(responseCode = "200", description = "An object representing the number of Ledger Transactions deleted",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,

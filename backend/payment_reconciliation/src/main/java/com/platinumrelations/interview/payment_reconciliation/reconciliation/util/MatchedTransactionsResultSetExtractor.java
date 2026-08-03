@@ -14,8 +14,50 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Collapses a flat join result into the three indexed views of {@link TransactionMapping}.
+ *
+ * <p>A join between the ledger and the settlement feed repeats the ledger columns once per matched
+ * settlement, so the same logical transaction appears on many rows. This extractor reads the whole
+ * result set once, rebuilds each distinct transaction and settlement exactly once, and links them
+ * into all three views. Doing it in a single pass is why the categorizers can ask three different
+ * questions without three queries.
+ *
+ * <p>Identity caches keyed by identifier are what guarantee one instance per logical row. That
+ * matters beyond allocation: the resulting objects are used directly as map keys and set members,
+ * so sharing one instance keeps the views internally consistent.
+ *
+ * <p>Written to tolerate either side being absent, because outer-joined queries use it to find
+ * transactions with no settlement and settlements with no transaction.
+ *
+ * <p>Stateless between calls and therefore reusable, though a single invocation is not
+ * thread-safe with respect to the {@link ResultSet} it is given.
+ *
+ * @author John
+ */
 public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor<TransactionMapping> {
 
+    /**
+     * Reads the entire result set and builds the three views.
+     *
+     * <p>Rows are expected to carry ledger columns prefixed {@code led_} and settlement columns
+     * prefixed {@code ps_}; the prefixes exist because both sides contribute same-named columns to
+     * the join. A {@code category} column is optional and is picked up when the query supplies it.
+     *
+     * <p>When one side of a row is absent, that side is indexed under a sentinel object whose
+     * identifier is the literal string {@code "null"}, and the absent counterpart is added to the
+     * value set as {@code null}. Callers reading the by-transaction or by-settlement views must
+     * therefore expect a sentinel key and {@code null} members; the by-merchant-reference view
+     * does not use sentinels and omits the missing side instead.
+     *
+     * @param rs the result set to consume, positioned before the first row; fully read by this
+     *           method
+     * @return the three views of the matched data; all three maps are empty rather than
+     *         {@code null} when the result set has no rows
+     * @throws SQLException        if a column cannot be read, other than the optional
+     *                             {@code category} column whose absence is tolerated
+     * @throws DataAccessException if the underlying access fails
+     */
     @Override
     public TransactionMapping extractData(ResultSet rs) throws SQLException, DataAccessException {
         HashMap<InternalTransaction, Set<ProcessorSettlement>> itToPsMap = new HashMap<>();
@@ -120,6 +162,18 @@ public class MatchedTransactionsResultSetExtractor implements ResultSetExtractor
         return new TransactionMapping(itToPsMap, psToItMap, merchantRefToTransactionKeysMap);
     }
 
+    /**
+     * Reads the optional {@code category} column, yielding {@code null} when the query did not
+     * select it.
+     *
+     * <p>The same extractor serves queries that join against recorded outcomes and queries that do
+     * not, so a missing column is an expected condition rather than an error. It is detected by
+     * catching the resulting {@link SQLException}, since {@link ResultSet} offers no way to test
+     * for a column's presence without inspecting the metadata.
+     *
+     * @param rs the result set, positioned on the row being read
+     * @return the category name, or {@code null} if the column is absent or SQL {@code NULL}
+     */
     private String retrieveCategoryStrOrNull(ResultSet rs){
         try {
             return rs.getString("category");

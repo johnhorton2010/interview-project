@@ -19,17 +19,54 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST endpoints for loading and clearing processor settlement reports.
+ *
+ * <p>Settlements are accepted as a JSON array rather than a file upload, which is the one
+ * structural difference from the ledger endpoints: the processor feed is already structured, so
+ * there is no parsing step and validation can be applied directly at the request boundary.
+ * {@code @Validated} is what activates the {@code @Valid} constraint on the list's elements.
+ *
+ * <p>Mounted under the configurable {@code app.custom.restcontroller.prefix}. Failures are not
+ * caught here; they propagate to {@code GlobalRestControllerExceptionHandler}.
+ *
+ * @author John
+ */
 @Validated
 @RestController
 @RequestMapping(value = "${app.custom.restcontroller.prefix}/processor-settlement-transactions")
 public class ProcessorSettlementController {
 
+    /**
+     * Creates the controller.
+     *
+     * @param processorSettlementService service performing the storage work
+     */
     public ProcessorSettlementController(ProcessorSettlementService processorSettlementService){
         this.processorSettlementService = processorSettlementService;
     }
 
+    /** Service this controller delegates all settlement work to. */
     final private ProcessorSettlementService processorSettlementService;
 
+    /**
+     * Bulk-loads settlement reports from a JSON array.
+     *
+     * <p>Mapped to {@code PUT} because the operation is idempotent: a settlement already stored is
+     * reported as {@code NO_CHANGE} and left untouched. The per-row result is returned rather than
+     * a bare count so the caller can tell exactly which settlements were new.
+     *
+     * <p>Each element is bean-validated before this method body runs, so a blank
+     * {@code networkRef} rejects the whole request rather than storing an unaddressable row. The
+     * resulting framework validation failure is handled by
+     * {@code GlobalRestControllerExceptionHandler} and surfaces as {@code 400 Bad Request} with
+     * nothing stored.
+     *
+     * @param settlementList the settlements to store
+     * @return {@code 200 OK} with a map from {@code networkRef} to the outcome for that row
+     * @throws org.springframework.dao.DataAccessException if the write fails, surfacing as
+     *                                                     {@code 500 Internal Server Error}
+     */
     @Operation(summary = "Attempt to create Processor Settlement Transactions")
     @ApiResponse(responseCode = "200", description = "Created new Processor Settlement Transactions or no change if an individual transaction already exists",
         content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -74,6 +111,14 @@ public class ProcessorSettlementController {
         return ResponseEntity.ok(processorSettlementService.bulkCreateProcessorSettlements(settlementList));
     }
 
+    /**
+     * Deletes every stored settlement.
+     *
+     * <p>Unconditional and unfiltered; provided to reset the settlement feed between runs against
+     * different data sets. The ledger and recorded reconciliation results are not affected.
+     *
+     * @return {@code 200 OK} wrapping the number of settlements deleted
+     */
     @Operation(summary = "Deletes all existing Processor Settlements")
     @ApiResponse(responseCode = "200", description = "An object representing the number of Processor Settlements deleted",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,

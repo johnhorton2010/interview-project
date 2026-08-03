@@ -13,17 +13,56 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Data access for the {@code ledger} table.
+ *
+ * <p>Uses plain SQL through {@link JdbcClient} and {@link NamedParameterJdbcTemplate} rather than
+ * an ORM, because the reconciliation queries are set-oriented joins and merges whose shape matters
+ * more than object mapping.
+ *
+ * <p>Two clients are held rather than one: {@code JdbcClient} covers the single-statement calls,
+ * while {@code NamedParameterJdbcTemplate} is needed for {@code batchUpdate}, which is what makes
+ * a whole uploaded file one round trip instead of one per row.
+ *
+ * <p>No method opens a transaction; callers supply the boundary.
+ *
+ * @author John
+ */
 @Repository
 public class LedgerRepository {
 
+    /**
+     * Creates the repository with the JDBC clients it delegates to.
+     *
+     * @param jdbcClient                 fluent client used for the single-statement queries
+     * @param namedParameterJdbcTemplate template used for batched upserts
+     */
     public LedgerRepository(JdbcClient jdbcClient, NamedParameterJdbcTemplate namedParameterJdbcTemplate){
         this.jdbcClient = jdbcClient;
         this.namedParameterJdbcTemplate = namedParameterJdbcTemplate;
     }
 
+    /** Fluent client for single-statement queries and updates. */
     private final JdbcClient jdbcClient;
+    /** Template used for batched upserts, which {@code JdbcClient} does not expose. */
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
+    /**
+     * Finds candidate pairings for settlements that arrived without a usable merchant reference.
+     *
+     * <p>This is the fallback matching pass. When a settlement carries no {@code merchant_ref} the
+     * direct join is impossible, so the transaction is instead identified by the combination of
+     * merchant, card type, and last four digits &mdash; a weaker signal that can legitimately match
+     * several ledger rows, which is why the result is a mapping of candidates rather than a
+     * resolved pairing.
+     *
+     * <p>Settlements already present in {@code reconciled_transactions} are excluded, so the query
+     * only ever proposes work that has not been decided. It is therefore safe to re-run and will
+     * not reopen a settled pairing.
+     *
+     * @return every candidate pairing, indexed in both directions and by merchant reference; empty
+     *         rather than {@code null} when nothing qualifies
+     */
     public TransactionMapping findByBackupIdentification(){
         String sql = """
                 SELECT
@@ -64,6 +103,28 @@ public class LedgerRepository {
                 .query(new MatchedTransactionsResultSetExtractor());
     }
 
+    /**
+     * Inserts every supplied transaction that is not already stored, in a single JDBC batch.
+     *
+     * <p>The {@code MERGE} has only a {@code WHEN NOT MATCHED} branch, so an existing
+     * {@code internal_txn_id} is left exactly as it is rather than being overwritten. This makes
+     * re-uploading a file harmless and, more importantly, prevents a later corrected export from
+     * silently rewriting history under transactions that have already been reconciled.
+     *
+     * <p>{@code category} is not part of the statement; it belongs to
+     * {@code reconciled_transactions} and is never set by an upload.
+     *
+     * <p>Per-row status is derived from each batch entry's affected-row count, which is why the
+     * result is positional: the returned map is keyed by {@code internalTxnId}, so duplicate ids
+     * within one file collapse to a single entry reflecting the last one processed.
+     *
+     * @param internalTransactionList transactions to store, in the order parsed from the upload;
+     *                                an empty list is valid and performs no work
+     * @return a map from {@code internalTxnId} to whether that row was written or already present
+     * @throws org.springframework.dao.DataAccessException if the batch fails; the surrounding
+     *                                                     transaction, if any, decides whether
+     *                                                     earlier entries survive
+     */
     public Map<String, RowStatus> saveAll(List<InternalTransaction> internalTransactionList){
         String sql = """
                 MERGE INTO ledger AS led
@@ -117,6 +178,17 @@ public class LedgerRepository {
         return batchUpdateMapping;
     }
 
+    /**
+     * Removes every row from the {@code ledger} table.
+     *
+     * <p>Intended for resetting between runs against a fresh data set. It clears only the ledger;
+     * settlements and previously recorded reconciliation results are untouched, so callers wanting
+     * a clean slate must clear those separately.
+     *
+     * @return the number of rows deleted; zero if the table was already empty
+     * @throws org.springframework.dao.DataAccessException if the delete fails, including when a
+     *                                                     foreign key still references a ledger row
+     */
     public int deleteAll(){
         String sql = """
                 DELETE
