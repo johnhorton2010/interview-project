@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Btn, HoverRow, Toast, FilterStrip, SegGroup, segStyle, useDismiss, copyText } from './common.jsx';
+import { Alert, Btn, HoverRow, Toast, FilterStrip, SegGroup, segStyle, useDismiss, copyText } from './common.jsx';
 
 describe('Toast', () => {
   it('renders nothing without a message', () => {
@@ -17,6 +17,51 @@ describe('Toast', () => {
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('breaks.csv — 8 rows exported');
     expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+});
+
+describe('Alert', () => {
+  it('announces itself as an alert by default', () => {
+    render(<Alert title="Could not load the report.">Is the backend running on :8080?</Alert>);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Could not load the report.');
+    expect(alert).toHaveTextContent('Is the backend running on :8080?');
+  });
+
+  it('takes a quieter role for a panel already inside an open dialog', () => {
+    render(<Alert role="status">Reset did not complete</Alert>);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('offers a dismiss only when there is somewhere to dismiss to', async () => {
+    const onDismiss = vi.fn();
+    const { rerender } = render(<Alert>boom</Alert>);
+    expect(screen.queryByLabelText('Dismiss')).not.toBeInTheDocument();
+
+    rerender(<Alert onDismiss={onDismiss}>boom</Alert>);
+    await userEvent.click(screen.getByLabelText('Dismiss'));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it('renders its actions inside the alert, so they can be scoped to it', () => {
+    render(
+      <Alert title="Could not refresh the report." actions={<button type="button">Retry</button>}>
+        boom
+      </Alert>,
+    );
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('drops the heading and actions in its compact form', () => {
+    render(
+      <Alert compact title="ignored" actions={<button type="button">Retry</button>}>
+        Ledger import failed (415). bad csv
+      </Alert>,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Ledger import failed (415). bad csv');
+    expect(screen.queryByText('ignored')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 });
 

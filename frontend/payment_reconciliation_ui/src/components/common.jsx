@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { C, MONO, SANS, ACCENT, INK2 } from '../styles/tokens.js';
+import { C, MONO, SANS, ACCENT, INK2, NEG, ERR } from '../styles/tokens.js';
 
 // Hover-aware elements reproduce the design's `style-hover=` behaviour without CSS.
 export function Btn({ style, hoverStyle, disabled, ...props }) {
@@ -90,6 +90,51 @@ export function Toast({ message }) {
       }}
     >
       {message}
+    </div>
+  );
+}
+
+/**
+ * The one red panel in the app: a failed load, a rejected import, a halted reset, a
+ * render that threw. The palette was hand-copied into each of those before this existed,
+ * so they had drifted apart by a shade or two each.
+ *
+ * `compact` is the single-line form used inline above a form; the default is the block
+ * form with a heading and room for actions underneath. `role` is a prop rather than
+ * hardcoded: an alert interrupts a screen reader, which is right for something the
+ * analyst just caused and wrong for a panel already inside an open dialog.
+ */
+export function Alert({ role = 'alert', title, children, onDismiss, actions, compact = false, style }) {
+  const dismiss = onDismiss && (
+    <button
+      type="button"
+      onClick={onDismiss}
+      aria-label="Dismiss"
+      style={{ border: 0, background: 'none', color: NEG, fontSize: 15, cursor: 'pointer', padding: '0 2px', alignSelf: 'flex-start' }}
+    >
+      ×
+    </button>
+  );
+  // `style` last so a caller can retune the size or spacing; the title and body inherit
+  // the container's font size rather than pinning their own, so one override moves both.
+  const base = { display: 'flex', gap: 10, background: ERR.bg, border: `1px solid ${ERR.border}`, color: ERR.ink };
+
+  if (compact) {
+    return (
+      <div role={role} style={{ ...base, alignItems: 'center', padding: '9px 13px', borderRadius: 7, fontSize: 12.5, ...style }}>
+        <span style={{ flex: 1 }}>{children}</span>
+        {dismiss}
+      </div>
+    );
+  }
+  return (
+    <div role={role} style={{ ...base, alignItems: 'flex-start', padding: '16px 18px', borderRadius: 8, fontSize: 13, ...style }}>
+      <div style={{ flex: 1 }}>
+        {title && <strong style={{ display: 'block', fontWeight: 600 }}>{title}</strong>}
+        <p style={{ margin: title ? '6px 0 0' : 0, textWrap: 'pretty' }}>{children}</p>
+        {actions && <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>{actions}</div>}
+      </div>
+      {dismiss}
     </div>
   );
 }

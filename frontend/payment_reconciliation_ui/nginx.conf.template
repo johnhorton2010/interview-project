@@ -53,6 +53,21 @@ server {
         proxy_connect_timeout 10s;
         proxy_send_timeout    300s;
         proxy_read_timeout    300s;
+
+        # A backend that is down or not answering otherwise reaches the browser as
+        # nginx's stock 502 HTML page, which src/api/client.js can only report as an
+        # opaque server error — and used to render into the import banner verbatim.
+        # Deliberately no proxy_intercept_errors: this catches nginx-generated connect
+        # and read failures only, so a 502/503 the backend itself returns still passes
+        # through as the backend's own answer.
+        error_page 502 504 = @backend_down;
+    }
+
+    # The one response the frontend treats as "the service is not reachable". Matches
+    # what the Vite dev proxy emits (vite.config.js), so both environments read alike.
+    location @backend_down {
+        default_type application/json;
+        return 503 '{"error":"backend_unreachable"}';
     }
 
     # Client-side routing: unknown paths fall back to the app shell rather than 404.

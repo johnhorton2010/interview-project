@@ -33,6 +33,14 @@ export const C = {
   pos: POS,
 };
 
+// Error surfaces (the <Alert> in components/common.jsx). Close to SEV_*.high but its own
+// scale: severity grades a reconciliation break, this reports a failed call.
+export const ERR = {
+  bg: '#fdecec',
+  border: '#f2d2d2',
+  ink: '#7a1f24',
+};
+
 // Severity → visual encoding. `sev` values come from the category table (§8).
 export const SEV_ORDER = { high: 0, medium: 1, low: 2, none: 3, excluded: 4 };
 export const SEV_COLOR = {

@@ -33,6 +33,19 @@ export default defineConfig(({ mode }) => {
         [API_PREFIX]: {
           target: API_TARGET,
           changeOrigin: true,
+          // With the backend down, Vite's own proxy error handler answers with an
+          // empty-bodied 500 — indistinguishable in the UI from a genuine backend 500.
+          // Emit the same machine-readable shape nginx does (see nginx.conf.template's
+          // @backend_down) so src/api/client.js can name the real cause. Vite runs
+          // `configure` before registering its handler, and that handler is guarded by
+          // `!res.headersSent && !res.writableEnded`, so answering here pre-empts it.
+          configure(proxy) {
+            proxy.on('error', (_err, _req, res) => {
+              if (!res || res.headersSent || res.writableEnded) return;
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'backend_unreachable' }));
+            });
+          },
         },
       },
       watch: true,

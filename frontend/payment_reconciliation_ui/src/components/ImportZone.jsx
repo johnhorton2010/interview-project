@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { C, MONO, INK, INK2, POS, ACCENT, NEG } from '../styles/tokens.js';
-import { Btn } from './common.jsx';
+import { Btn, Alert } from './common.jsx';
 import { API_PREFIX } from '../api/client.js';
 
 function DropCard({ title, accept, noun, outcomesNoun, busy, result, entriesOpen, onToggleEntries, onFile, hint, endpointHint }) {
@@ -102,10 +102,9 @@ export default function ImportZone({ ledger, settle, run, reset, hasReport, impo
       </div>
 
       {error && (
-        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '9px 13px', background: '#fdecec', border: '1px solid #f2d2d2', borderRadius: 7, fontSize: 12.5, color: '#7a1f24' }}>
-          <span style={{ flex: 1 }}>{error}</span>
-          <button type="button" onClick={onDismissError} aria-label="Dismiss" style={{ border: 0, background: 'none', color: NEG, fontSize: 15, cursor: 'pointer', padding: '0 2px' }}>×</button>
-        </div>
+        <Alert compact onDismiss={onDismissError} style={{ marginBottom: 14 }}>
+          {error}
+        </Alert>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: 18, alignItems: 'start' }}>

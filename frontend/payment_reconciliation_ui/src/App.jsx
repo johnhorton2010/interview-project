@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { getReconciliations, runReconciliation } from './api/reconciliations.js';
 import { validateLedgerFile, uploadLedger } from './api/ledger.js';
 import { validateSettlementFile, parseAndValidateSettlements, uploadSettlements } from './api/settlements.js';
-import { API_PREFIX, summarizeStatuses } from './api/client.js';
-import { runReset } from './api/reset.js';
+import { API_PREFIX, summarizeStatuses, describeApiError } from './api/client.js';
+import { runReset, RESET_STEPS } from './api/reset.js';
 import { normalize } from './domain/normalize.js';
 import { C, MONO, INK, INK2, ACCENT } from './styles/tokens.js';
-import { Toast, Btn } from './components/common.jsx';
+import { Toast, Btn, Alert } from './components/common.jsx';
 import ImportZone from './components/ImportZone.jsx';
 import ResetModal from './components/ResetModal.jsx';
 import Report from './components/report/Report.jsx';
@@ -95,13 +95,19 @@ export default function App() {
     sessionStorage.setItem(STALE_KEY, v ? '1' : '0');
   }, []);
 
+  /** @returns {Promise<boolean>} whether the report was refreshed — callers must not
+   *  report success without checking, which is what the Refresh button used to do. */
   const reload = useCallback(async () => {
     try {
       const payload = await getReconciliations();
       const model = normalize(payload);
       setData({ status: model.rows.length ? 'ready' : 'empty', model, error: null });
+      return true;
     } catch (e) {
-      setData({ status: 'error', model: null, error: e });
+      // Keep the last good model. A blip on Refresh used to blank the report and every
+      // filter the analyst had set, so a recoverable failure cost them their place.
+      setData((d) => ({ status: 'error', model: d.model, error: e }));
+      return false;
     }
   }, []);
 
@@ -109,7 +115,13 @@ export default function App() {
     reload();
   }, [reload]);
 
-  const hasReport = data.status === 'ready';
+  // A failed reload keeps the last good model, so what the page shows follows the model
+  // and only a cold failure — nothing ever loaded — takes the page over. Everything that
+  // asks "is a report on screen?" reads this rather than `status`, so a transient error
+  // cannot re-open the import zone or disable the reset behind the analyst's back.
+  const view = data.model ? (data.model.rows.length ? 'ready' : 'empty') : data.status;
+  const hasReport = view === 'ready';
+  const staleReport = data.status === 'error' && !!data.model;
   const effImportOpen = importOpen === null ? !hasReport : importOpen;
 
   // Every nav jump scrolls the tab strip into view, but only after the destination tab has
@@ -174,7 +186,7 @@ export default function App() {
       setLedgerRes(summarizeStatuses(map));
       if (hasReport) markStale(true);
     } catch (e) {
-      setImportErr(`Ledger import failed${e.status ? ` (${e.status})` : ''}. ${e.body || e.message}`);
+      setImportErr(describeApiError(e, 'Ledger import'));
     } finally {
       setBusy(null);
     }
@@ -208,7 +220,7 @@ export default function App() {
       setSettleRes(summarizeStatuses(map));
       if (hasReport) markStale(true);
     } catch (e) {
-      setImportErr(`Settlement import failed${e.status ? ` (${e.status})` : ''}. ${e.body || e.message}`);
+      setImportErr(describeApiError(e, 'Settlement import'));
     } finally {
       setBusy(null);
     }
@@ -227,7 +239,11 @@ export default function App() {
       setExpanded(null);
       flash(`${count} reconciled records created`);
     } catch (e) {
-      setImportErr(`Reconciliation failed${e.status ? ` (${e.status})` : ''}. ${e.body || e.message}`);
+      setImportErr(describeApiError(e, 'Reconciliation'));
+      // The import zone is the only surface that renders importErr, and it is collapsed
+      // after the first successful run — while the stale banner keeps offering its own
+      // "Run reconciliation". Without this a failed re-run from there says nothing at all.
+      setImportOpen(true);
     } finally {
       setBusy(null);
     }
@@ -236,14 +252,22 @@ export default function App() {
   const dismissStale = useCallback(() => markStale(false), [markStale]);
 
   const onRefresh = async () => {
-    await reload();
-    flash(`Refreshed — GET ${API_PREFIX}/reconciliations`);
+    // Only on success: the banner reload() raises is the feedback when it fails.
+    if (await reload()) flash(`Refreshed — GET ${API_PREFIX}/reconciliations`);
   };
 
   const confirmReset = async () => {
     if (reset.phase === 'confirm' && reset.phrase.trim().toUpperCase() !== 'RESET') return;
     setReset((r) => ({ ...r, phase: 'running', done: [], failedAt: null, error: null }));
-    const res = await runReset();
+    // runReset reports each step as it *begins*. The sequence is strictly ordered and
+    // halts on the first failure, so every earlier step has cleared by then — which is
+    // what the modal wants: it marks the step after the last cleared one as deleting.
+    // Without this `done` stayed empty until the whole run resolved, so all three
+    // endpoints sat on the first one's spinner however long the deletes took.
+    const res = await runReset((key) => {
+      const i = RESET_STEPS.findIndex((st) => st.key === key);
+      setReset((r) => ({ ...r, done: RESET_STEPS.slice(0, i).map((st) => st.key) }));
+    });
     if (res.failedAt) {
       // A halted sequence leaves the report and the analyst's filters alone: they are
       // what shows which datasets survived (FR-9.3).
@@ -274,6 +298,14 @@ export default function App() {
 
   const importDone = !!ledgerRes || !!settleRes || hasReport;
 
+  // Shared by the cold-failure page and the banner over a surviving report — the same
+  // action either way, so it should not be two buttons that can drift apart.
+  const retryButton = (
+    <Btn onClick={reload} style={{ border: `1px solid ${ACCENT}`, background: ACCENT, color: '#fff', padding: '7px 12px', fontSize: 13, borderRadius: 6, cursor: 'pointer' }} hoverStyle={{ background: '#2a55bd' }}>
+      Retry
+    </Btn>
+  );
+
   return (
     <div style={{ minHeight: '100vh', background: C.pageBg, color: INK, fontSize: 14, lineHeight: 1.45 }}>
       <Header onRefresh={onRefresh} />
@@ -301,23 +333,33 @@ export default function App() {
         }}
       />
 
-      {data.status === 'loading' && <div style={{ padding: '72px 28px', color: INK2 }}>Loading reconciliation…</div>}
+      {view === 'loading' && <div style={{ padding: '72px 28px', color: INK2 }}>Loading reconciliation…</div>}
 
-      {data.status === 'error' && (
+      {view === 'error' && (
         <main style={{ maxWidth: 760, margin: '0 auto', padding: '64px 28px' }}>
-          <div role="alert" style={{ padding: '16px 18px', background: '#fdecec', border: '1px solid #f2d2d2', borderRadius: 8, color: '#7a1f24' }}>
-            <strong>Could not load the report.</strong>
-            <p style={{ margin: '6px 0 12px', fontSize: 13 }}>{data.error?.message}</p>
-            <Btn onClick={reload} style={{ border: `1px solid ${ACCENT}`, background: ACCENT, color: '#fff', padding: '7px 12px', fontSize: 13, borderRadius: 6, cursor: 'pointer' }} hoverStyle={{ background: '#2a55bd' }}>
-              Retry
-            </Btn>
-          </div>
+          <Alert title="Could not load the report." actions={retryButton}>
+            {data.error?.message}
+          </Alert>
         </main>
       )}
 
-      {data.status === 'empty' && <EmptyState />}
+      {/* A reload that failed over a report already on screen: say so above it rather than
+          replacing it, since everything below is still the last figures the backend gave. */}
+      {staleReport && (
+        <div style={{ padding: '18px 28px 0' }}>
+          <Alert
+            title="Could not refresh the report."
+            actions={retryButton}
+            onDismiss={() => setData((d) => ({ ...d, status: d.model.rows.length ? 'ready' : 'empty', error: null }))}
+          >
+            {data.error?.message} The figures below are from the last successful load.
+          </Alert>
+        </div>
+      )}
 
-      {data.status === 'ready' && (
+      {view === 'empty' && <EmptyState />}
+
+      {view === 'ready' && (
         <Report
           model={data.model}
           tab={tab}

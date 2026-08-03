@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import App from './App.jsx';
 import { mockApi, fail, offline } from './test/helpers/api.js';
 import { API_PREFIX } from './api/client.js';
+import { RESET_STEPS } from './api/reset.js';
 import { buildSamplePayload, emptyPayload } from './test/helpers/model.js';
 import { dataRows } from './test/helpers/render.jsx';
 
@@ -26,6 +27,8 @@ const renderReady = async (routes) => {
 const fileInputs = () => [...document.querySelectorAll('input[type="file"]')];
 const table = (name) => screen.getByRole('table', { name });
 const csvFile = () => new File(['id,amount\n1,2\n'], 'internal_transactions.csv', { type: 'text/csv' });
+/** What the Vite dev proxy and nginx both answer with when :8080 is not listening. */
+const backendDown = () => fail(503, { error: 'backend_unreachable' });
 
 describe('App', () => {
   describe('initial load', () => {
@@ -82,9 +85,77 @@ describe('App', () => {
 
     it('reports a server error with its status', async () => {
       mockApi({ 'GET /reconciliations': fail(500, 'kaboom') });
+
       render(<App />);
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Request failed (500 Error).');
+    });
+
+    it('names the backend when a proxy reports it is down', async () => {
+      // A dead backend never reaches the browser as a fetch rejection — the Vite proxy and
+      // nginx both answer for it. This is what actually happens with :8080 stopped.
+      mockApi({ 'GET /reconciliations': backendDown() });
+
+      render(<App />);
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Is the backend running on :8080?');
+      expect(alert).not.toHaveTextContent('Request failed');
+    });
+  });
+
+  describe('refresh failures', () => {
+    // The report is the analyst's working surface: a blip must not cost them their place,
+    // and must never be reported as a success.
+    const staleAfterFailedRefresh = async (route) => {
+      const view = await renderReady();
+      await view.user.click(screen.getByText('Merchants · 8'));
+      await view.user.click(within(table('Merchant rollup')).getByText('MERCH-004'));
+
+      view.api.setRoute('GET /reconciliations', route);
+      await view.user.click(screen.getByRole('button', { name: 'Refresh' }));
+      return view;
+    };
+
+    it('keeps the report and its filters, and does not claim it refreshed', async () => {
+      await staleAfterFailedRefresh(offline());
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Could not refresh the report.');
+      expect(alert).toHaveTextContent('Is the backend running on :8080?');
+      expect(alert).toHaveTextContent('from the last successful load');
+
+      expect(table('Breaks')).toBeInTheDocument();
+      expect(screen.getByText(/merchant: MERCH-004/)).toBeInTheDocument();
+      expect(screen.queryByText(/^Refreshed —/)).not.toBeInTheDocument();
+    });
+
+    it('leaves the import zone collapsed rather than reopening it', async () => {
+      await staleAfterFailedRefresh(offline());
+      await screen.findByRole('alert');
+
+      expect(screen.queryByRole('heading', { name: 'Import' })).not.toBeInTheDocument();
+    });
+
+    it('recovers on retry', async () => {
+      const { api, user } = await staleAfterFailedRefresh(offline());
+      const alert = await screen.findByRole('alert');
+
+      api.setRoute('GET /reconciliations', buildSamplePayload());
+      await user.click(within(alert).getByRole('button', { name: 'Retry' }));
+
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      expect(screen.getByText(/merchant: MERCH-004/)).toBeInTheDocument();
+    });
+
+    it('can be dismissed, leaving the report behind it', async () => {
+      const { user } = await staleAfterFailedRefresh(offline());
+      const alert = await screen.findByRole('alert');
+
+      await user.click(within(alert).getByLabelText('Dismiss'));
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(table('Breaks')).toBeInTheDocument();
     });
   });
 
@@ -220,6 +291,19 @@ describe('App', () => {
       await user.click(within(alert).getByLabelText('Dismiss'));
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+
+    it('keeps an upstream error page out of the banner', async () => {
+      // nginx answers a failure of its own with an HTML page, which used to be
+      // interpolated into the banner in full.
+      const { user } = await renderReady({ 'PUT /ledger-transactions': fail(502, '<html><head><title>502 Bad Gateway</title></head></html>') });
+
+      await user.click(screen.getByText('Open import'));
+      fireEvent.change(fileInputs()[0], { target: { files: [csvFile()] } });
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Ledger import failed (502).');
+      expect(alert).not.toHaveTextContent('502 Bad Gateway');
+    });
   });
 
   describe('run reconciliation', () => {
@@ -243,6 +327,36 @@ describe('App', () => {
       expect(sessionStorage.getItem('recon.stale')).toBe('0');
       expect(table('Reconciliation Summary')).toBeInTheDocument();
     });
+
+    it('reopens the collapsed import zone to show why a re-run failed', async () => {
+      // The import zone is the only surface that renders this error, and the stale banner
+      // offers its own trigger from behind a collapsed one — so the failure had nowhere
+      // to appear and the click read as a no-op.
+      const { user } = await renderReady({
+        'PUT /ledger-transactions': { 'TXN-000001': 'INSERTED_OR_UPDATED' },
+        'POST /reconciliations': fail(500, 'reconciler exploded'),
+      });
+
+      await user.click(screen.getByText('Open import'));
+      fireEvent.change(fileInputs()[0], { target: { files: [csvFile()] } });
+      await screen.findByText(/You have imported data since the last reconciliation/);
+      await user.click(screen.getByRole('button', { name: 'Collapse' }));
+      expect(screen.queryByRole('heading', { name: 'Import' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Run reconciliation' }));
+
+      expect(await screen.findByRole('heading', { name: 'Import' })).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Reconciliation failed (500). reconciler exploded');
+    });
+
+    it('names the backend when a re-run cannot reach it', async () => {
+      const { user } = await renderReady({ 'POST /reconciliations': backendDown() });
+
+      await user.click(screen.getByText('Open import'));
+      await user.click(screen.getByRole('button', { name: 'Re-run reconciliation' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Is the backend running on :8080?');
+    });
   });
 
   describe('reset', () => {
@@ -251,6 +365,9 @@ describe('App', () => {
       'DELETE /ledger-transactions': {},
       'DELETE /processor-settlement-transactions': {},
     };
+
+    const stepStatuses = () =>
+      RESET_STEPS.map((st) => screen.getByText(st.endpoint).closest('div[style*="grid"]').lastElementChild.textContent);
 
     const openAndConfirm = async (user) => {
       await user.click(screen.getByText('Open import'));
@@ -282,6 +399,34 @@ describe('App', () => {
       expect(screen.getByRole('heading', { name: 'No reconciliation yet' })).toBeInTheDocument();
       expect(screen.queryByText(/merchant: MERCH-004/)).not.toBeInTheDocument();
       expect(sessionStorage.getItem('recon.stale')).toBe('0');
+    });
+
+    it('advances the step list as each dataset clears, not all at once at the end', async () => {
+      // The modal derives "deleting" from how many steps have cleared, so without live
+      // progress all three endpoints sat on the first one's spinner for the whole run —
+      // which over a slow delete looks indistinguishable from a hang.
+      let releaseLedger;
+      const ledgerInFlight = new Promise((resolve) => {
+        releaseLedger = resolve;
+      });
+      const { user } = await renderReady({
+        ...deletes,
+        'DELETE /ledger-transactions': async () => {
+          await ledgerInFlight;
+          return {};
+        },
+      });
+
+      await openAndConfirm(user);
+
+      await waitFor(() => expect(stepStatuses()).toEqual(['cleared', 'deleting', 'pending']));
+
+      await act(async () => {
+        releaseLedger();
+      });
+
+      expect(await screen.findByText('All ingested data deleted')).toBeInTheDocument();
+      expect(stepStatuses()).toEqual(['cleared', 'cleared', 'cleared']);
     });
 
     it('halts on the first failure, leaving the report and its filters alone', async () => {

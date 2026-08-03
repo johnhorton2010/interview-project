@@ -1,5 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { RESET_STEPS } from '../api/reset.js';
+import { errorDetail } from '../api/client.js';
+import { Alert } from './common.jsx';
 import { C, MONO, INK, INK2, NEG, POS, ACCENT } from '../styles/tokens.js';
 
 export default function ResetModal({ open, phase, phrase, setPhrase, done, failedAt, error, onConfirm, onClose }) {
@@ -34,11 +36,13 @@ export default function ResetModal({ open, phase, phrase, setPhrase, done, faile
 
   const failedStep = RESET_STEPS.find((st) => st.key === failedAt);
   const errStatus = error && error.status;
-  const errBody = error && (typeof error.body === 'string' && error.body ? error.body : error.message);
+  // A status-0 failure — nothing answered, or it answered and stalled — carries its whole
+  // explanation in the message; anything else has a body worth showing, once sanitized.
+  const errBody = error && (errorDetail(error) || (error.body ? '' : error.message));
   const errorBody =
     (failedStep ? failedStep.endpoint : 'A delete step') +
     (errStatus ? ` returned ${errStatus}` : ' could not be reached') +
-    (errBody ? ` — ${String(errBody).slice(0, 160)}` : '') +
+    (errBody ? ` — ${errBody}` : '') +
     '. Earlier steps that succeeded are shown above; nothing after the failure was attempted.';
 
   const stepView = RESET_STEPS.map((st, i) => {
@@ -85,11 +89,12 @@ export default function ResetModal({ open, phase, phrase, setPhrase, done, faile
           ))}
         </div>
 
+        {/* role="status", not "alert": the dialog announced itself when it opened, and the
+            analyst is already reading it. */}
         {phase === 'failed' && (
-          <div role="status" style={{ margin: '0 20px 16px', border: '1px solid #f2d2d2', background: '#fcecec', borderRadius: 7, padding: '11px 13px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#b02a30' }}>Reset did not complete</div>
-            <p style={{ margin: '5px 0 0', fontSize: 12, color: '#7a3034', textWrap: 'pretty' }}>{errorBody}</p>
-          </div>
+          <Alert role="status" title="Reset did not complete" style={{ margin: '0 20px 16px', padding: '11px 13px', borderRadius: 7, fontSize: 12 }}>
+            {errorBody}
+          </Alert>
         )}
 
         {phase === 'confirm' && (
