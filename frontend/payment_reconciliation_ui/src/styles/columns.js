@@ -152,11 +152,17 @@ function needsPad(spec) {
  * supplies it. Getting this backwards pinches or doubles that one gutter.
  *
  * @param {Array<{key: string, min: number, fixed?: boolean, align?: 'left'|'right'}>} spec
- * @param {{ gap?: number, candidates?: string[]|null, fontKey?: string }} [opts]
+ * @param {{ gap?: number, candidates?: Array<string|string[]>|null, fontKey?: string }} [opts]
  *
- * `candidates` is the caller's declaration of the widest string each column's body will
- * have to print, in `spec` order. Supplying it replaces the per-cell DOM walk — see the
- * file header. Omit it and the body is measured off the rendered rows as before.
+ * `candidates` is the caller's declaration of what each column's body has to fit, in
+ * `spec` order. Supplying it replaces the per-cell DOM walk — see the file header. Omit
+ * it and the body is measured off the rendered rows as before.
+ *
+ * An entry is normally the one widest string. It may instead be an array, for a column
+ * whose widest string cannot be picked without measuring: proportional text has no
+ * relation between character count and width, so a column of prose declares its whole
+ * (bounded) vocabulary and lets the canvas decide. Monospace columns should stay single
+ * strings — there, longest *is* widest, and one measurement beats many.
  *
  * `fontKey` invalidates the per-column font cache. Fonts are read once from a rendered
  * body row rather than per render, because on the candidates path the first rendered row
@@ -212,10 +218,13 @@ export function useColumns(ref, spec, { gap = TABLE_GAP, candidates = null, font
       const list = fonts.current.list;
       if (list) {
         const ctx = context2d();
-        candidates.forEach((text, i) => {
-          if (i >= spec.length || !text || !list[i]) return;
-          const w = widthOf(ctx, list[i], String(text));
-          if (w > content[i]) content[i] = w;
+        candidates.forEach((entry, i) => {
+          if (i >= spec.length || !entry || !list[i]) return;
+          (Array.isArray(entry) ? entry : [entry]).forEach((text) => {
+            if (!text) return;
+            const w = widthOf(ctx, list[i], String(text));
+            if (w > content[i]) content[i] = w;
+          });
         });
       }
     } else {

@@ -249,6 +249,11 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
   // follows digit count and digit count follows magnitude.
   const candidates = useMemo(() => {
     const text = new Array(SPEC.length).fill('');
+    // `category` is the one proportional column, so it cannot name a single widest
+    // string — character count says nothing about width in a variable-width face. It
+    // declares its distinct labels instead and lets the canvas pick; the set is bounded
+    // by the category vocabulary, not by the break count.
+    const cats = new Set();
     // Two magnitudes per money column: the widest that prints bare, and the widest that
     // prints behind a sign. Keeping them apart is what stops a column reserving room for
     // a minus that only ever appears on a smaller figure — one glyph, but a visible one.
@@ -274,7 +279,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     };
 
     filtered.forEach((r) => {
-      put(0, getCategory(r.category).label);
+      cats.add(getCategory(r.category).label);
       put(1, r.merchantId);
       // The ref cell stacks two lines, so it is sized by the wider of them — not by the
       // two concatenated, which is what a DOM text walk would have measured.
@@ -307,6 +312,8 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     put(11, '▾');
 
     return SPEC.map((c, i) => {
+      // The Total label shares this column with the category labels.
+      if (i === 0) return [...cats, text[0]];
       if (!MONEY_COLS.has(i)) return text[i];
       const a = bare[i] < 0 ? '' : fmt(bare[i]);
       const b = signed[i] < 0 ? '' : '−' + fmt(signed[i]);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalize } from '../../domain/normalize.js';
-import { emptyPayload } from '../../test/helpers/model.js';
+import { emptyPayload, largeModel } from '../../test/helpers/model.js';
 import { renderQuarantine, dataRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
 
@@ -104,5 +104,45 @@ describe('QuarantineTab', () => {
 
     expect(dataRows(table())).toHaveLength(0);
     expect(screen.getByText('Nothing quarantined.')).toBeInTheDocument();
+  });
+  // The paths that only engage past WINDOW_MIN rows. jsdom performs no layout, so the row
+  // metrics stay at their estimates — which is the guard being relied on here, and enough
+  // to exercise the geometry.
+  describe('at scale', () => {
+    const PER_SIDE = 400;
+    // Built once: `normalize` is pure and no component mutates the model.
+    const big = largeModel(200, { quarantined: PER_SIDE });
+    const total = PER_SIDE * 2; // one withheld record per side, per iteration
+
+    it('renders a window onto the withheld records, not all of them', () => {
+      const { table } = renderQuarantine({ model: big });
+      expect(dataRows(table()).length).toBeLessThan(120);
+    });
+
+    it('tells assistive tech how long the table really is', () => {
+      const { table } = renderQuarantine({ model: big });
+      expect(table()).toHaveAttribute('aria-rowcount', String(total + 1));
+    });
+
+    it('sizes the reason column from its whole vocabulary, not the rows on screen', () => {
+      // Every `quarantineReason` branch is represented in the fixture, and only a few of
+      // them are within the first window — so a column sized off the rendered rows would
+      // be too narrow for the reasons further down.
+      const { table } = renderQuarantine({ model: big });
+      const shown = new Set(columnText(table(), REASON));
+      expect(shown.size).toBeGreaterThan(1);
+      // The track is wide enough for the longest reason in the whole set, not just these.
+      const track = table().querySelector('[role="row"]').style.gridTemplateColumns.split(' ')[REASON];
+      expect(parseFloat(track)).toBeGreaterThan(200); // clears the spec floor
+    });
+
+    it('exports every withheld record, not the rendered window', async () => {
+      const { user, flash } = renderQuarantine({ model: big });
+      await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+      const csv = await lastDownload();
+      expect(csv.lines).toHaveLength(total + 1); // header + every record
+      expect(flash).toHaveBeenCalledWith(`quarantined-records.csv — ${total} rows exported`);
+    });
   });
 });

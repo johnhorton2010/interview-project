@@ -1,8 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useCallback, useDeferredValue } from 'react';
 import { merchantRollup, matchMerchantAll } from '../../domain/selectors.js';
 import { fmt, sfmt, neg, dec, decNeg, downloadCsv } from '../../domain/format.js';
 import { C, INK } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
+import { useWindowedRows, useRowMetrics, rowHeight } from '../../hooks/useWindowedRows.js';
 import { bodyRow, headerRow, totalRow, totalLabel, rowRule, discColor, deductionColor } from '../../styles/table.js';
 import { HoverRow, GhostButton, SegGroup, FilterStrip } from '../common.jsx';
 import { HeadCell, Num, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
@@ -31,14 +32,65 @@ const SEARCH_TITLE =
   'Terms are combined with AND. Plain text matches the merchant id. A decimal matches any ' +
   'money column — sales, refunds, interchange, processor, fees, expected pay, settled or discrepancy.';
 
+// Positions in SPEC that hold money. The three trailing counts are plain integers, and
+// the merchant id is text, so only these are sized by magnitude.
+const MONEY_COLS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+
+/**
+ * One merchant.
+ *
+ * Memoized because this table windows its rows and re-slices as the page scrolls; without
+ * it every row still on screen would re-render on every scroll tick. Every row is the
+ * same height — there is no subline and nothing expands — so one shape covers the table.
+ */
+const MerchantRow = React.memo(function MerchantRow({ m, rowIndex, template, gap, cell, onOpen }) {
+  return (
+    <HoverRow
+      role="row"
+      aria-rowindex={rowIndex}
+      data-row-shape="row"
+      onClick={() => onOpen(m)}
+      style={{ ...bodyRow(template, gap), ...rowRule }}
+      hoverStyle={{ background: C.hover }}
+    >
+      {/* The merchant id is this row's identity, so it keeps full ink at the table's
+          base size — the treatment Transactions gives its own id column. */}
+      <span role="cell" style={{ ...cell('merchant'), color: INK }}>{m.merchantId}</span>
+      <Num style={cell('sales')} color={INK}>{m.sales}</Num>
+      {/* A quarantine-only merchant reads N/A here, and `deductionColor(0)` keeps it
+          neutral — the same neutral a genuine zero gets. */}
+      <Num style={cell('refunds')} color={deductionColor(m.raw.refunds)}>{m.refunds}</Num>
+      <Num style={cell('interchange')} color={deductionColor(m.raw.interchange)}>{m.interchange}</Num>
+      <Num style={cell('processor')} color={deductionColor(m.raw.processor)}>{m.processor}</Num>
+      <Num style={cell('fees')} color={deductionColor(m.raw.fees)}>{m.fees}</Num>
+      <Num style={cell('expected')} color={INK}>{m.expected}</Num>
+      <Num style={cell('settled')} color={INK}>{m.settled}</Num>
+      {/* A quarantine-only row prints N/A over a raw disc of 0, which `discColor`
+          already renders in normal ink — no special case needed. */}
+      <Num style={{ ...cell('discrepancy'), fontWeight: 500 }} color={discColor(m.raw.disc)}>
+        {m.discrepancy}
+      </Num>
+      <Num style={cell('clean')} color={INK}>{m.clean}</Num>
+      <Num style={cell('breaks')} color={INK}>{m.breaks}</Num>
+      <Num style={cell('quarantine')} color={INK}>{m.quarantine}</Num>
+    </HoverRow>
+  );
+});
+
 // `mr` is owned by App, not held here: this component unmounts on every tab switch, so
 // local state would forget a deliberate filter each time you left.
 export default function MerchantTable({ model, nav, mr, setMr, flash }) {
-  const { query, breaksOnly } = mr;
+  const { breaksOnly } = mr;
   const tableRef = useRef(null);
-  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC);
+
+  // The input stays synchronous; the filter behind it is allowed to lag a frame.
+  const query = useDeferredValue(mr.query);
+
   const { rows: all } = merchantRollup(model);
-  const rows = all.filter((m) => (!breaksOnly || m.hasBreaks) && matchMerchantAll(m, query));
+  const rows = useMemo(
+    () => all.filter((m) => (!breaksOnly || m.hasBreaks) && matchMerchantAll(m, query)),
+    [all, breaksOnly, query],
+  );
 
   const filterBits = [];
   if (breaksOnly) filterBits.push('show: Breaks only');
@@ -48,11 +100,105 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
   // shows a total its own rows do not add up to. Quarantine-only merchants sum harmlessly:
   // every money field is 0 and only `quar` is non-zero.
   const KEYS = ['sales', 'refunds', 'interchange', 'processor', 'fees', 'expected', 'settled', 'disc', 'clean', 'breaks', 'quar'];
-  const t = rows.reduce(
-    (acc, m) => Object.fromEntries(KEYS.map((k) => [k, acc[k] + m.raw[k]])),
-    Object.fromEntries(KEYS.map((k) => [k, 0])),
-  );
+  // One accumulator mutated in place, rather than a fresh eleven-key object per row.
+  const t = useMemo(() => {
+    const acc = Object.fromEntries(KEYS.map((k) => [k, 0]));
+    rows.forEach((m) => KEYS.forEach((k) => (acc[k] += m.raw[k])));
+    return acc;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
   const filtered = rows.length < all.length;
+  const totalLabelText = filtered ? `Total — ${rows.length} of ${all.length} merchants` : 'Total';
+
+  // ---- column sizing
+  //
+  // The widest string each column's body has to print, declared for useColumns rather
+  // than walked off the DOM — a windowed table renders only the rows on screen, so
+  // measuring the DOM would make track widths follow the scroll position. See the header
+  // of styles/columns.js.
+  //
+  // Every column here is monospace, so longest is widest and one pass over the raw
+  // magnitudes suffices. `N/A` is offered alongside the figures because a fully
+  // quarantined merchant prints that instead of a number.
+  const candidates = useMemo(() => {
+    const text = new Array(SPEC.length).fill('');
+    const bare = new Array(SPEC.length).fill(-1);
+    const signed = new Array(SPEC.length).fill(-1);
+    const put = (i, s2) => {
+      if (s2 && s2.length > text[i].length) text[i] = s2;
+    };
+    const widen = (arr, i, v) => {
+      if (v > arr[i]) arr[i] = v;
+    };
+    /** Sales, Exp pay: `fmt` signs only a negative. */
+    const m = (i, v) => {
+      if (v === null || v === undefined) return;
+      widen(v < 0 ? signed : bare, i, Math.abs(v));
+    };
+    /** The four deductions print through `neg`, which signs every non-zero; Discrepancy
+     *  prints through `sfmt`, which signs a positive too. A zero prints bare. */
+    const mNeg = (i, v) => {
+      if (v === null || v === undefined) return;
+      widen(v ? signed : bare, i, Math.abs(v));
+    };
+
+    const feed = (src, quarOnly) => {
+      m(1, src.sales);
+      mNeg(2, src.refunds);
+      mNeg(3, src.interchange);
+      mNeg(4, src.processor);
+      mNeg(5, src.fees);
+      m(6, src.expected);
+      m(7, src.settled);
+      mNeg(8, src.disc);
+      if (quarOnly) MONEY_COLS.forEach((i) => put(i, 'N/A'));
+      put(9, String(src.clean));
+      put(10, String(src.breaks));
+      put(11, String(src.quar));
+    };
+
+    rows.forEach((mr2) => {
+      put(0, mr2.merchantId);
+      feed(mr2.raw, mr2.raw.quarantineOnly);
+    });
+    // The Total row too: its label is the longest string the first column ever prints and
+    // its figures are the largest in the table, so a column fitted only to the body rows
+    // would clip them. It was measured for free by the DOM walk this replaces.
+    put(0, totalLabelText);
+    feed(t, false);
+
+    return SPEC.map((c, i) => {
+      if (!MONEY_COLS.has(i)) return text[i];
+      const a = bare[i] < 0 ? '' : fmt(bare[i]);
+      const b = signed[i] < 0 ? '' : '−' + fmt(signed[i]);
+      const widest = b.length > a.length ? b : a;
+      return widest.length >= text[i].length ? widest : text[i];
+    });
+  }, [rows, t, totalLabelText]);
+
+  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC, { candidates });
+
+  // ---- windowing
+  const H = useRowMetrics(tableRef, COLS);
+  const bandRef = useRef(null);
+  const window_ = useWindowedRows({
+    count: rows.length,
+    // Uniform: no sublines, nothing expands.
+    heightOf: useCallback(() => rowHeight(H, 'row', false), [H]),
+    sig: `${rows.length}|${JSON.stringify(H)}`,
+    ref: bandRef,
+  });
+  const visible = rows.slice(window_.start, window_.end);
+
+  const openMerchant = useCallback(
+    (m) =>
+      m.raw.quarantineOnly
+        ? nav.toQuarantine()
+        : m.hasBreaks
+          ? nav.toBreaks({ merchantFilter: m.merchantId, catFilter: [] })
+          : nav.toTransactions({ query: `merchant:${m.merchantId}` }),
+    [nav],
+  );
 
   const exportCsv = () => {
     const n = downloadCsv(
@@ -90,7 +236,7 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
           </p>
           <input
             type="search"
-            value={query}
+            value={mr.query}
             onChange={(e) => setMr((m) => ({ ...m, query: e.target.value }))}
             placeholder="Search merchant or amount — e.g. MERCH-004 or 1186.63"
             title={SEARCH_TITLE}
@@ -113,8 +259,11 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
 
       <FilterStrip bits={filterBits} onClear={() => setMr((m) => ({ ...m, query: '', breaksOnly: false }))} />
 
-      <div ref={tableRef} role="table" aria-label="Merchant rollup" style={{ fontSize: 13 }}>
-        <div role="row" style={headerRow(COLS, GAP)}>
+      {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band has only
+          its visible rows in the DOM, and without this a screen reader would be told the
+          table is fifty rows long. Header row included, hence the +1. */}
+      <div ref={tableRef} role="table" aria-label="Merchant rollup" aria-rowcount={rows.length + 1} style={{ fontSize: 13 }}>
+        <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP)}>
           <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
           <HeadCell style={cell('sales')} help={HELP.sales}>Sales</HeadCell>
           <HeadCell style={cell('refunds')} help={HELP.refunds}>Refunds</HeadCell>
@@ -131,51 +280,25 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
 
         {rows.length === 0 && <EmptyState>No merchants match these filters.</EmptyState>}
 
-        {rows.map((m) => (
-          <HoverRow
+        {/* Stands in for the rows above the window, and marks the band's top for the
+            scroll geometry. Rendered even at zero height so the ref always has an element
+            and the DOM shape does not change with the row count. */}
+        <div ref={bandRef} aria-hidden="true" style={{ height: window_.padTop }} />
+        {visible.map((m, i) => (
+          <MerchantRow
             key={m.merchantId}
-            role="row"
-            // Three destinations, each the place this merchant's records actually are:
-            // all-quarantined → Quarantine, has breaks → the filtered break list, and
-            // otherwise → Transactions. That last case has included rows but no breaks,
-            // so sending it to Breaks would land on an empty list.
-            onClick={() =>
-              m.raw.quarantineOnly
-                ? nav.toQuarantine()
-                : m.hasBreaks
-                  ? nav.toBreaks({ merchantFilter: m.merchantId, catFilter: [] })
-                  : nav.toTransactions({ query: `merchant:${m.merchantId}` })
-            }
-            style={{ ...bodyRow(COLS, GAP), ...rowRule }}
-            hoverStyle={{ background: C.hover }}
-          >
-            {/* The merchant id is this row's identity, so it keeps full ink at the table's
-                base size — the treatment Transactions gives its own id column. */}
-            <span role="cell" style={{ ...cell('merchant'), color: INK }}>{m.merchantId}</span>
-            <Num style={cell('sales')} color={INK}>{m.sales}</Num>
-            {/* A quarantine-only merchant reads N/A here, and `deductionColor(0)` keeps it
-                neutral — the same neutral a genuine zero gets. */}
-            <Num style={cell('refunds')} color={deductionColor(m.raw.refunds)}>{m.refunds}</Num>
-            <Num style={cell('interchange')} color={deductionColor(m.raw.interchange)}>{m.interchange}</Num>
-            <Num style={cell('processor')} color={deductionColor(m.raw.processor)}>{m.processor}</Num>
-            <Num style={cell('fees')} color={deductionColor(m.raw.fees)}>{m.fees}</Num>
-            <Num style={cell('expected')} color={INK}>{m.expected}</Num>
-            <Num style={cell('settled')} color={INK}>{m.settled}</Num>
-            {/* A quarantine-only row prints N/A over a raw disc of 0, which `discColor`
-                already renders in normal ink — no special case needed. */}
-            <Num style={{ ...cell('discrepancy'), fontWeight: 500 }} color={discColor(m.raw.disc)}>
-              {m.discrepancy}
-            </Num>
-            <Num style={cell('clean')} color={INK}>{m.clean}</Num>
-            <Num style={cell('breaks')} color={INK}>{m.breaks}</Num>
-            <Num style={cell('quarantine')} color={INK}>{m.quarantine}</Num>
-          </HoverRow>
+            m={m}
+            rowIndex={window_.start + i + 2}
+            template={COLS}
+            gap={GAP}
+            cell={cell}
+            onOpen={openMerchant}
+          />
         ))}
+        {window_.padBottom > 0 && <div aria-hidden="true" style={{ height: window_.padBottom }} />}
 
         <div role="row" style={totalRow(COLS, GAP)}>
-          <span role="cell" style={totalLabel}>
-            {filtered ? `Total — ${rows.length} of ${all.length} merchants` : 'Total'}
-          </span>
+          <span role="cell" style={totalLabel}>{totalLabelText}</span>
           <Num style={cell('sales')} color={INK}>{fmt(t.sales)}</Num>
           <Num style={cell('refunds')} color={deductionColor(t.refunds)}>{neg(t.refunds)}</Num>
           <Num style={cell('interchange')} color={deductionColor(t.interchange)}>{neg(t.interchange)}</Num>

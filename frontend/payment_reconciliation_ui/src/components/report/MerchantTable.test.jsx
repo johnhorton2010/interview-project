@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderMerchants, dataRows, summaryRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
+import { largeModel } from '../../test/helpers/model.js';
 
 // Column order: Merchant, Sales, Refunds, Interchange, Processor, Fees, Exp pay, Settled,
 // Discrepancy, Clean, Breaks, Quarantine.
@@ -156,5 +157,49 @@ describe('MerchantTable', () => {
     const csv = await lastDownload();
     expect(csv.lines).toHaveLength(5); // header + 4 merchants with breaks
     expect(flash).toHaveBeenCalledWith('merchant-rollup.csv — 4 rows exported');
+  });
+  // The paths that only engage past WINDOW_MIN rows. jsdom performs no layout, so the row
+  // metrics stay at their estimates — which is the guard being relied on here, and enough
+  // to exercise the geometry.
+  describe('at scale', () => {
+    const MERCHANTS = 600;
+    // Built once: `normalize` is pure and no component mutates the model.
+    const big = largeModel(2400, { merchants: MERCHANTS, quarantined: 40 });
+
+    it('renders a window onto the merchants, not all of them', () => {
+      const { table } = renderMerchants({ model: big });
+
+      expect(dataRows(table()).length).toBeLessThan(120);
+      expect(totalLabel(table)).toBe('Total');
+    });
+
+    it('tells assistive tech how long the table really is', () => {
+      const { table } = renderMerchants({ model: big });
+      expect(table()).toHaveAttribute('aria-rowcount', String(MERCHANTS + 1));
+    });
+
+    it('sizes its columns off the data, so the total row cannot clip', () => {
+      const { table } = renderMerchants({ model: big });
+      const cells = within(summaryRows(table())[0]).getAllByRole('cell');
+      expect(cells[SALES].textContent).toMatch(/^\$[\d,]+\.\d\d$/);
+    });
+
+    it('filters and totals over every merchant, not the rendered window', async () => {
+      const { table, user } = renderMerchants({ model: big });
+      const before = within(summaryRows(table())[0]).getAllByRole('cell')[SALES].textContent;
+
+      await user.type(search(), 'MERCH-0001');
+      expect(totalLabel(table)).toMatch(/^Total — 1 of 600 merchants$/);
+      expect(within(summaryRows(table())[0]).getAllByRole('cell')[SALES].textContent).not.toBe(before);
+    });
+
+    it('exports every merchant, not the rendered window', async () => {
+      const { user, flash } = renderMerchants({ model: big });
+      await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+      const csv = await lastDownload();
+      expect(csv.lines).toHaveLength(MERCHANTS + 1); // header + every merchant
+      expect(flash).toHaveBeenCalledWith(`merchant-rollup.csv — ${MERCHANTS} rows exported`);
+    });
   });
 });

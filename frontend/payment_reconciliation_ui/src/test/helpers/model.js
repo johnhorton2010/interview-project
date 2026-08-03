@@ -11,14 +11,39 @@ export function sampleModel() {
 }
 
 /**
+ * The four ways a record can be withheld, cycled so a large fixture exercises every
+ * `quarantineReason` branch — and, because the Quarantine table's row height follows how
+ * far its reason wraps, every row shape too.
+ */
+const QUAR_LEDGER = [
+  { cardType: '', gross: 1234, currency: 'USD' }, // missing card type
+  { cardType: 'VISA', gross: null, currency: 'USD' }, // unparseable amount
+  { cardType: 'VISA', gross: 0, currency: 'USD' }, // zero-value
+  { cardType: 'VISA', gross: 5678, currency: 'EUR' }, // non-USD
+];
+const QUAR_SETTLE = [
+  { settled: null, currency: 'USD' },
+  { settled: 0, currency: 'USD' },
+  { settled: 4321, currency: 'GBP' },
+  { settled: 9999, currency: 'JPY' },
+];
+
+/**
  * The sample model inflated to `n` included rows.
  *
  * For the paths that only engage on a large table — windowing, and the column sizing that
  * has to stay independent of which rows are rendered. Rows are clones of the golden ones
  * with fresh identifiers, so every category, both row shapes (with and without a ledger
  * side) and the multi-part settlements all stay represented at any size.
+ *
+ * @param {number} n
+ * @param {{merchants?: number, quarantined?: number}} [opts]
+ *   `merchants` spreads the rows over that many distinct merchant ids, for the rollup,
+ *   which has one row per merchant rather than per transaction. `quarantined` appends
+ *   that many withheld records to each side; they land in `ledger`/`settle` but never in
+ *   `included`, which is exactly where the report expects to find them.
  */
-export function largeModel(n) {
+export function largeModel(n, { merchants = 0, quarantined = 0 } = {}) {
   const src = sampleModel().included;
   const ledger = [];
   const settle = [];
@@ -26,13 +51,38 @@ export function largeModel(n) {
   for (let i = 0; i < n; i += 1) {
     const r = src[i % src.length];
     const sfx = `-c${i}`;
-    const l = r.ledger ? { ...r.ledger, id: r.ledger.id + sfx } : null;
-    const settlements = r.settlements.map((x) => ({ ...x, ref: x.ref + sfx }));
+    const merchantId = merchants ? `MERCH-${String(i % merchants).padStart(4, '0')}` : r.merchantId;
+    const l = r.ledger ? { ...r.ledger, id: r.ledger.id + sfx, merchantId } : null;
+    const settlements = r.settlements.map((x) => ({ ...x, ref: x.ref + sfx, merchantId }));
     if (l) ledger.push(l);
     settlements.forEach((x) => settle.push(x));
-    rows.push({ ...r, id: r.id + sfx, ledger: l, settlements });
+    rows.push({ ...r, id: r.id + sfx, merchantId, ledger: l, settlements });
   }
-  // `src` is already the included set, so nothing here is quarantined.
+
+  for (let i = 0; i < quarantined; i += 1) {
+    const merchantId = merchants ? `MERCH-${String(i % merchants).padStart(4, '0')}` : 'MERCH-001';
+    ledger.push({
+      ...QUAR_LEDGER[i % QUAR_LEDGER.length],
+      id: `TXN-Q-${i}`,
+      merchantId,
+      merchantRef: `ORD-Q-${i}`,
+      type: 'SALE',
+      capturedAt: '2026-06-01',
+      category: 'QUARANTINE',
+    });
+    settle.push({
+      ...QUAR_SETTLE[i % QUAR_SETTLE.length],
+      ref: `ARN-Q-${i}`,
+      merchantId,
+      merchantRef: `ORD-Q-${i}`,
+      date: '2026-06-02',
+      interchange: 0,
+      processor: 0,
+      category: 'QUARANTINE',
+    });
+  }
+
+  // `included` is the non-quarantined set, which is what every figure on the report sums.
   return { ledger, settle, rows, included: rows };
 }
 

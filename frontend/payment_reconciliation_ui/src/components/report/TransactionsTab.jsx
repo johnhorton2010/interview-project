@@ -693,6 +693,11 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // length is at worst a glyph or two out — comfortably inside the slack floor.
   const candidates = useMemo(() => {
     const text = new Array(LSPEC.length).fill('');
+    // `category` is the one proportional column, so it cannot name a single widest
+    // string — character count says nothing about width in a variable-width face. It
+    // declares its distinct labels instead and lets the canvas pick; the set is bounded
+    // by the category vocabulary, not by the row count.
+    const cats = new Set();
     // Two magnitudes per money column: the widest that prints bare, and the widest that
     // prints behind a sign. Keeping them apart is what stops a column reserving room for
     // a minus that only ever appears on a smaller figure — one glyph, but a visible one.
@@ -729,7 +734,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
       t(1, captured);
       t(2, r.merchantId);
       t(3, ref || '');
-      t(10, getCategory(r.category).label);
+      cats.add(getCategory(r.category).label);
     };
 
     if (settleCentric) {
@@ -786,6 +791,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
     t(11, '▾');
 
     return LSPEC.map((c, i) => {
+      if (i === 10) return [...cats];
       if (!MONEY_COLS.has(i)) return text[i];
       const a = bare[i] < 0 ? '' : fmt(bare[i]);
       const b = signed[i] < 0 ? '' : '−' + fmt(signed[i]);
