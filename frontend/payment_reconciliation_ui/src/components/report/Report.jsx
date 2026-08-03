@@ -132,13 +132,10 @@ function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, se
           parent at any width; across, `minmax(0, 1fr)` keeps that true in the band between
           the breakpoint and the 736px the tiles actually need. */}
       <section aria-label="Headline figures" style={{ display: 'grid', gridTemplateColumns: stackTiles ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
-        <Tile onClick={() => nav.toQuarantine()} style={{ ...tileBase, background: '#f7f8fa', border: '1px dashed #cfd6e0' }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Quarantined</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: INK2 }}>{f.quarantineCount}</span>
-            <span style={{ fontSize: 12, color: INK2 }}>records</span>
-          </div>
-          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Excluded from every calculation on this report. Click to see records.</div>
+        <Tile onClick={() => nav.toBreaks()} style={{ ...tileBase, background: '#fff', border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Breaks</div>
+          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{f.breakCount}</div>
+          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Click to see records.</div>
         </Tile>
 
         <Tile style={{ ...tileBase, background: discTileBg, border: `1px solid ${discTileBorder}` }}>
@@ -147,10 +144,13 @@ function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, se
           <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>{discNote}</div>
         </Tile>
 
-        <Tile onClick={() => nav.toBreaks()} style={{ ...tileBase, background: '#fff', border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Breaks</div>
-          <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{f.breakCount}</div>
-          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Click to see records.</div>
+        <Tile onClick={() => nav.toQuarantine()} style={{ ...tileBase, background: '#f7f8fa', border: '1px dashed #cfd6e0' }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Quarantined</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: INK2 }}>{f.quarantineCount}</span>
+            <span style={{ fontSize: 12, color: INK2 }}>records</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#7b8697', marginTop: 6 }}>Excluded from every calculation on this report. Click to see records.</div>
         </Tile>
       </section>
 

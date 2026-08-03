@@ -72,6 +72,18 @@ describe('Report', () => {
       expect(within(tiles).getByText('Processor settled more than expected.')).toBeInTheDocument();
     });
 
+    it('leads with the actionable count and ends with the exclusion note', () => {
+      // Order is a decision, not an accident: Breaks is what someone acts on, Quarantined
+      // is the caveat about what the report left out. It also decides the reading order of
+      // the stack on a narrow viewport, where the tiles sit one above the other.
+      setup();
+      const labels = [...tiles().children].map((t) => t.textContent);
+
+      expect(labels[0]).toMatch(/^Breaks/);
+      expect(labels[1]).toMatch(/^Total discrepancy/);
+      expect(labels[2]).toMatch(/^Quarantined/);
+    });
+
     it('routes the two clickable tiles, and leaves the discrepancy inert', async () => {
       // The discrepancy is not a destination: there is no single list behind a net figure.
       const { nav, user } = setup();
