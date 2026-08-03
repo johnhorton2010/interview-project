@@ -84,6 +84,25 @@ describe('Report', () => {
 
       expect(tile('Total discrepancy').tagName).not.toBe('BUTTON');
     });
+
+    it('stacks into one column on a viewport too narrow for three across', () => {
+      // Not cosmetic: nothing on the page is a horizontal scroll container, so a row that
+      // stays three-across below its minimum width puts the Breaks tile off the screen
+      // entirely, with no way to reach it.
+      const wide = window.matchMedia;
+      window.matchMedia = (media) => ({ ...wide(media), matches: true });
+      try {
+        setup();
+        expect(tiles()).toHaveStyle({ gridTemplateColumns: '1fr' });
+      } finally {
+        window.matchMedia = wide;
+      }
+    });
+
+    it('sits three across on a wide viewport, with no width floor to overrun the page', () => {
+      setup();
+      expect(tiles()).toHaveStyle({ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' });
+    });
   });
 
   describe('payout derivation', () => {

@@ -3,11 +3,23 @@ import { figures, merchantRollup } from '../../domain/selectors.js';
 import { fmt, sfmt } from '../../domain/format.js';
 import { C, MONO, INK, INK2, NEG, POS, ACCENT } from '../../styles/tokens.js';
 import { HoverRow, Btn } from '../common.jsx';
+import { useMediaQuery } from '../../hooks/useMediaQuery.js';
 import CategoryTable from './CategoryTable.jsx';
 import MerchantTable from './MerchantTable.jsx';
 import BreaksTab from './BreaksTab.jsx';
 import TransactionsTab from './TransactionsTab.jsx';
 import QuarantineTab from './QuarantineTab.jsx';
+
+/**
+ * Viewport width below which the three headline tiles stack instead of sitting across.
+ *
+ * Three tiles at their tightest comfortable width plus the gaps and `<main>`'s padding come
+ * to 28 + 220×3 + 12×2 + 28 = 736px, and nothing on the page is a horizontal scroll
+ * container — below that the third tile would simply leave the right edge. The switch is
+ * set above 736 rather than at it so the tiles stack while still legible, not at the pixel
+ * where they break.
+ */
+const TILES_STACK_BELOW = 800;
 
 function Tile({ children, onClick, style }) {
   if (onClick) {
@@ -104,6 +116,7 @@ function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, se
   const discNote = f.discrepancy === 0 ? 'balanced' : f.discrepancy < 0 ? 'Processor settled more than expected.' : 'Processor settled less than expected.';
 
   const tileBase = { borderRadius: 8, padding: '14px 16px' };
+  const stackTiles = useMediaQuery(`(max-width: ${TILES_STACK_BELOW - 1}px)`);
 
   return (
     <main style={{ padding: '22px 28px 80px' }}>
@@ -115,7 +128,10 @@ function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, se
         </div>
       )}
 
-      <section aria-label="Headline figures" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
+      {/* Stacked, the track is a bare `1fr` with no floor, so the row cannot outrun its
+          parent at any width; across, `minmax(0, 1fr)` keeps that true in the band between
+          the breakpoint and the 736px the tiles actually need. */}
+      <section aria-label="Headline figures" style={{ display: 'grid', gridTemplateColumns: stackTiles ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
         <Tile onClick={() => nav.toQuarantine()} style={{ ...tileBase, background: '#f7f8fa', border: '1px dashed #cfd6e0' }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7b8697', marginBottom: 8 }}>Quarantined</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

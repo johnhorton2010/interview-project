@@ -42,6 +42,24 @@ if (typeof window !== 'undefined') {
     disconnect() {}
   };
 
+  // jsdom performs no layout and so implements no media queries: window.matchMedia is simply
+  // absent. hooks/useMediaQuery and App's reduced-motion check both guard against that and
+  // fall back to `false`, which means their subscribe/listen paths would never run under test.
+  // `matches: false` is exactly what those fallbacks already produce — the wide layout, motion
+  // allowed — so this changes no existing assertion, it only lets the real path execute.
+  if (typeof window.matchMedia !== 'function') {
+    window.matchMedia = (media) => ({
+      media,
+      matches: false,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    });
+  }
+
   // App.scrollTabs() calls this 40ms after every nav jump. jsdom does not implement it, so
   // it throws *inside a timer* — outside any test's stack, surfacing against whatever runs
   // next. vi.fn so a test can assert that a cross-tab jump scrolled.
