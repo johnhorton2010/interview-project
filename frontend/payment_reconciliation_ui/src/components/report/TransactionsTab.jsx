@@ -801,7 +801,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
   // `fontKey` is the view: it is the only thing that changes a column's font here — the
   // settlement view's "unsettled" cell is sans where the ledger view's date is mono.
-  const { template: COLS, gap: GAP, cell: col, cells: colStyles } = useColumns(tableRef, LSPEC, {
+  const { template: COLS, gap: GAP, cell: col, cells: colStyles, overflows } = useColumns(tableRef, LSPEC, {
     candidates,
     fontKey: tx.view,
   });
@@ -955,9 +955,20 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
 
       <FilterStrip bits={filterBits} onClear={() => setTx((t) => ({ ...t, cats: [], type: 'all', query: '' }))} />
 
-      {/* No overflow container here: it would trap the sticky column header inside
-          its own scroll box. */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px', minWidth: 0 }}>
+      {/* A scroll container traps the sticky column header inside its own scroll box, so
+          it appears only once the columns no longer fit — a width at which the tracks are
+          already at their floor, and at which a header that stuck would be scrolled away
+          from its own columns anyway. Above it the header stays pinned to the page and
+          this is a plain box, exactly as before. */}
+      <div
+        style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: '0 0 8px 8px',
+          minWidth: 0,
+          ...(overflows ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+        }}
+      >
         {/* The design ships two separate tables with distinct names; keep them
             distinguishable to assistive tech even though we render one wrapper. */}
         {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band
@@ -972,7 +983,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
         >
           {settleCentric ? (
             <>
-              <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, true)}>
+              <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, !overflows)}>
                 <SortH label={L.id} k="id" tx={tx} setTx={setTx} help={HELP} colStyle={col('id')} />
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} help={HELP} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} help={HELP} colStyle={col('merchant')} />
@@ -1018,7 +1029,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
             </>
           ) : (
             <>
-              <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, true)}>
+              <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, !overflows)}>
                 <SortH label={L.id} k="id" tx={tx} setTx={setTx} help={HELP} colStyle={col('id')} />
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} help={HELP} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} help={HELP} colStyle={col('merchant')} />

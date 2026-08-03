@@ -18,7 +18,8 @@ const VIEWPORT_PAD = 8;
  * that each rule out nesting on their own: `measureContent` sizes a column from its
  * header cell's `textContent` (styles/columns.js), so an open tooltip would blow the
  * column out to its own width; its text would join the header button's accessible name;
- * and Summary, Merchants and Quarantine wrap their tables in `overflowX: 'auto'`, which
+ * and every table wraps itself in `overflowX: 'auto'` — Summary, Merchants and Quarantine
+ * always, Breaks and Transactions at widths where their columns stop fitting — which
  * would clip it at the card edge. A header is also a grid item, so the panel cannot be a
  * sibling either — that would claim a column.
  */

@@ -1,11 +1,17 @@
 // Windowing for the long report tables: which slice of a band is worth rendering, plus
 // the spacers that stand in for the rest so the page still scrolls its true length.
 //
-// The scroll container is the page, not an inner box. That is forced by the markup and
-// stated in TransactionsTab: an overflow container would trap the sticky column header
-// inside its own scroll box, and the header sticks to the page viewport under the app
-// header (see APP_HEADER_H in styles/table.js). So the geometry here is read off
-// `window.scrollY` and the band's own offset in the document.
+// The *vertical* scroll container is the page, not an inner box. That is forced by the
+// markup and stated in TransactionsTab: an overflow container would trap the sticky
+// column header inside its own scroll box, and the header sticks to the page viewport
+// under the app header (see APP_HEADER_H in styles/table.js). So the geometry here is
+// read off `window.scrollY` and the band's own offset in the document.
+//
+// Breaks and Transactions do grow a horizontal scroll container at widths where their
+// columns no longer fit (the `overflows` flag from styles/columns.js), and drop the
+// sticky header for as long as it is there. Nothing below cares: rows keep their document
+// positions and their heights, so `window.scrollY` and the band offset still describe the
+// vertical geometry exactly as they do at full width.
 //
 // Spacers are plain divs with no `role`, rendered as siblings of the rows inside the
 // `role="table"` container. Two consequences, both wanted: the container keeps its full

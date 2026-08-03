@@ -321,7 +321,7 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
     });
   }, [filtered, t, totalLabelText]);
 
-  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC, { candidates });
+  const { template: COLS, gap: GAP, cell, overflows } = useColumns(tableRef, SPEC, { candidates });
 
   // ---- windowing
   const H = useRowMetrics(tableRef, `${expanded}|${COLS}`);
@@ -466,12 +466,23 @@ export default function BreaksTab({ model, br, setBr, expanded, setExpanded, fla
 
       <FilterStrip bits={filterBits} onClear={() => setBr((b) => ({ ...b, catFilter: [], merchantFilter: null, query: '' }))} />
 
-      <div ref={tableRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px' }}>
+      {/* A scroll container traps the sticky column header inside its own scroll box, so
+          it appears only once the columns no longer fit — see the same note in
+          TransactionsTab. */}
+      <div
+        ref={tableRef}
+        style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: '0 0 8px 8px',
+          ...(overflows ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+        }}
+      >
         {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band has
             only its visible rows in the DOM, and without this a screen reader would be told
             the table is fifty rows long. Header row included, hence the +1. */}
         <div role="table" aria-label="Breaks" aria-rowcount={filtered.length + 1} style={{ fontSize: 13 }}>
-          <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, true)}>
+          <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, !overflows)}>
             <SortHeader label="Category" help={HELP.category} style={cell('category')} active={sortKey === 'category'} dir={sortDir} onClick={() => setSort('category')} />
             <SortHeader label="Merchant" help={HELP.merchant} style={cell('merchant')} active={sortKey === 'merchant'} dir={sortDir} onClick={() => setSort('merchant')} />
             <SortHeader label="Merchant ref" help={HELP.ref} style={cell('ref')} active={sortKey === 'ref'} dir={sortDir} onClick={() => setSort('ref')} />

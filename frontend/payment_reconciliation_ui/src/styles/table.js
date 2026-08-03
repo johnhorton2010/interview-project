@@ -24,7 +24,13 @@ const pad = (v) => `${v}px ${TABLE_INSET}px`;
 /** Sticky offset for a table header: the app header's height (see App.jsx). */
 const APP_HEADER_H = 56;
 
-/** Column-header row. `sticky` pins it under the app header while the body scrolls. */
+/**
+ * Column-header row. `sticky` pins it under the app header while the body scrolls.
+ *
+ * Breaks and Transactions pass it conditionally: it only holds while the page is their
+ * scroll container, and they grow one of their own on the horizontal axis once their
+ * columns stop fitting (`overflows` from styles/columns.js).
+ */
 export const headerRow = (template, gap, sticky) => ({
   display: 'grid',
   gridTemplateColumns: template,

@@ -169,15 +169,22 @@ function needsPad(spec) {
  * changes as the table scrolls, and re-reading would let a track jump mid-scroll. The
  * contract: anything that changes a column's font must change this string.
  *
- * @returns {{ template: string, gap: number, cell: (key: string) => object, cells: object[], isRight: (key: string) => boolean }}
+ * `overflows` reports that the resolved template is wider than the container — the
+ * tracks are at their floor and the grid is spilling out of it. A caller that has no
+ * scroll container of its own (Breaks, Transactions, which keep a page-sticky header)
+ * uses it to grow one only for as long as it is needed; see the note on `natural` below.
+ *
+ * @returns {{ template: string, gap: number, cell: (key: string) => object, cells: object[], isRight: (key: string) => boolean, overflows: boolean }}
  */
 export function useColumns(ref, spec, { gap = TABLE_GAP, candidates = null, fontKey = '' } = {}) {
   const [resolved, setResolved] = useState(() => ({
     template: spec.map((c) => `${c.min}px`).join(' '),
     pads: {},
+    overflows: false,
   }));
   const [tick, setTick] = useState(0);
   const last = useRef(resolved.template);
+  const lastOverflows = useRef(resolved.overflows);
   const fonts = useRef({ key: null, list: null });
 
   // What the measurement below actually depends on. A *join* rather than the array's
@@ -240,6 +247,15 @@ export function useColumns(ref, spec, { gap = TABLE_GAP, candidates = null, font
     const surplus = el.clientWidth - inset - base.reduce((n, w) => n + w, 0) - gaps;
     const k = Math.round(clamp(MIN_SLACK, surplus / shares, MAX_SLACK));
 
+    // The narrowest this table can be drawn: every track at its content floor, with the
+    // slack already bottomed out at MIN_SLACK. Below that the tracks cannot give any
+    // further — the cells ellipsize but the sum of the tracks does not shrink — so the
+    // grid overflows its container and the caller has to supply somewhere to scroll.
+    // Guarded on a non-zero width because jsdom reports 0 for every box, and a table
+    // that has not been laid out is not a table that is overflowing.
+    const natural = inset + base.reduce((n, w) => n + w, 0) + gaps + shares * MIN_SLACK;
+    const overflows = el.clientWidth > 0 && natural > el.clientWidth;
+
     const template = spec
       .map((c, i) => `${base[i] + (c.fixed ? 0 : k) + (pad[i] ? k : 0)}px`)
       .join(' ');
@@ -248,9 +264,13 @@ export function useColumns(ref, spec, { gap = TABLE_GAP, candidates = null, font
       if (pad[i]) pads[c.key] = k;
     });
 
-    if (template !== last.current) {
+    // `overflows` is part of the guard, not merely of the payload: `k` is pinned at
+    // MIN_SLACK on both sides of the width where it flips, so the template string is
+    // identical there and guarding on it alone would swallow the transition.
+    if (template !== last.current || overflows !== lastOverflows.current) {
       last.current = template;
-      setResolved({ template, pads });
+      lastOverflows.current = overflows;
+      setResolved({ template, pads, overflows });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, gap, spec, fontKey, sig, tick]);
@@ -299,5 +319,5 @@ export function useColumns(ref, spec, { gap = TABLE_GAP, candidates = null, font
 
   const isRight = useCallback((key) => byKey[key]?.align === 'right', [byKey]);
 
-  return { template: resolved.template, gap, cell, cells, isRight };
+  return { template: resolved.template, gap, cell, cells, isRight, overflows: resolved.overflows };
 }

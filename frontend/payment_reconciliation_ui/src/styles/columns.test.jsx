@@ -18,12 +18,19 @@ const SPEC = [
 
 const tracks = (template) => template.split(' ').map((t) => parseFloat(t));
 
-function Table({ spec = SPEC, merchant = 'M-1', badge = null, onResolve }) {
+function Table({ spec = SPEC, merchant = 'M-1', badge = null, width = null, onResolve }) {
   const ref = useRef(null);
-  const { template, cell, isRight } = useColumns(ref, spec);
-  onResolve?.({ template, cell, isRight });
+  const { template, cell, isRight, overflows } = useColumns(ref, spec);
+  onResolve?.({ template, cell, isRight, overflows });
+  // jsdom lays nothing out and reports 0 for every box, so a container width has to be
+  // stated. Done on the ref rather than in a style, and before the layout effect reads
+  // it — React attaches refs ahead of running them.
+  const attach = (el) => {
+    ref.current = el;
+    if (el && width != null) Object.defineProperty(el, 'clientWidth', { value: width, configurable: true });
+  };
   return (
-    <div ref={ref} role="table" aria-label="Probe">
+    <div ref={attach} role="table" aria-label="Probe">
       <div role="row" style={{ display: 'grid', gridTemplateColumns: template, gap: TABLE_GAP, padding: '0 14px' }}>
         <span role="cell" style={cell('merchant')}>
           {merchant}
@@ -92,6 +99,38 @@ describe('useColumns', () => {
     const k = last.cell('category').paddingLeft; // the shared slack, surfaced as the pad
     expect(t[3]).toBe(8); // caret: its `min`, with no slack added
     expect(t[0]).toBeGreaterThanOrEqual(40 + k);
+  });
+
+  it('reports whether the resolved tracks still fit their container', () => {
+    // The flag Breaks and Transactions hang their horizontal scroll container on. Widths
+    // either side of the floor: at 800px the four tracks and their gutters have room to
+    // spare, at 120px they do not.
+    expect(resolve({ width: 800 }).last.overflows).toBe(false);
+    expect(resolve({ width: 120 }).last.overflows).toBe(true);
+  });
+
+  it('flips that flag at a width where the template itself does not change', () => {
+    // The regression this guards. The slack bottoms out exactly at the width where the
+    // table stops fitting, so the template string is byte-identical either side of the
+    // boundary — a state guard comparing only templates would swallow the transition and
+    // the scroll container would never appear.
+    const floor = tracks(resolve({ width: 60 }).last.template).reduce((a, b) => a + b, 0);
+    // The narrowest the table can be drawn: its floor tracks, the gutters between them,
+    // and the row's 14px-per-side inset.
+    const natural = floor + TABLE_GAP * (SPEC.length - 1) + 28;
+
+    const fits = resolve({ width: natural }).last;
+    const pinched = resolve({ width: natural - 1 }).last;
+
+    expect(fits.template).toBe(pinched.template);
+    expect(fits.overflows).toBe(false);
+    expect(pinched.overflows).toBe(true);
+  });
+
+  it('treats an unmeasured container as fitting rather than as overflowing', () => {
+    // Nothing has been laid out yet (and nothing ever is, under jsdom): a table of width
+    // zero is not a table whose columns have stopped fitting.
+    expect(resolve().last.overflows).toBe(false);
   });
 
   it('settles in one extra pass rather than looping', () => {
