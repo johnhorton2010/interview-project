@@ -2,7 +2,7 @@
 // directly — the measurement runs off rendered DOM, so there is nothing to test without
 // one. This file also pins the canvas stub in src/test/setup.js: if that stub regresses,
 // every table suite fails here first, with a comprehensible message.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { useRef } from 'react';
 import { render } from '@testing-library/react';
 import { useColumns, TABLE_GAP } from './columns.js';
@@ -108,5 +108,99 @@ describe('useColumns', () => {
     rerender(<Table onResolve={(r) => seen.push(r)} />);
     expect(seen).toHaveLength(3);
     expect(seen[2].template).toBe(seen[1].template);
+  });
+});
+
+// ---- the candidates path ---------------------------------------------------
+//
+// A long table renders a window onto its rows, so its columns cannot be sized by walking
+// the DOM: the widths would follow the scroll position, and the walk would cost a forced
+// style recalc per cell per render. Callers declare the widest string per column instead.
+
+/** Header, `n` body rows, and one declared candidate per column. */
+function BigTable({ rows, candidates, merchant = 'M-1', onResolve }) {
+  const ref = useRef(null);
+  const { template, cell } = useColumns(ref, SPEC, { candidates });
+  onResolve?.({ template, cell });
+  return (
+    <div ref={ref} role="table" aria-label="Probe">
+      <div role="row" style={{ display: 'grid', gridTemplateColumns: template, gap: TABLE_GAP }}>
+        <span role="columnheader" style={cell('merchant')}>Merchant</span>
+        <span role="columnheader" style={cell('amount')}>Amount</span>
+        <span role="columnheader" style={cell('category')}>Category</span>
+        <span role="columnheader" style={cell('caret')} />
+      </div>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} role="row" style={{ display: 'grid', gridTemplateColumns: template, gap: TABLE_GAP }}>
+          <span role="cell" style={cell('merchant')}>{merchant}</span>
+          <span role="cell" style={cell('amount')}>$1,186.63</span>
+          <span role="cell" style={cell('category')}>Duplicate settlement</span>
+          <span role="cell" style={cell('caret')}>▾</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const CANDIDATES = ['MERCHANT-000000000004', '$1,186.63', 'Duplicate settlement', '▾'];
+
+/** How many strings the canvas was asked to measure across a full mount. */
+function measureCalls(ui) {
+  const ctx = document.createElement('canvas').getContext('2d');
+  const spy = vi.spyOn(ctx, 'measureText');
+  render(ui);
+  const n = spy.mock.calls.length;
+  spy.mockRestore();
+  return n;
+}
+
+describe('useColumns with declared candidates', () => {
+  it('costs the same measurement whether it is sizing 3 rows or 300', () => {
+    // The whole point of the path, as a call count rather than a stopwatch: measurement
+    // is O(columns), so the body it is sizing cannot change what it costs.
+    const few = measureCalls(<BigTable rows={3} candidates={CANDIDATES} />);
+    const many = measureCalls(<BigTable rows={300} candidates={CANDIDATES} />);
+    expect(many).toBe(few);
+    // Header cells plus candidates, twice over the two mount passes — not 300 rows' worth.
+    expect(many).toBeLessThan(40);
+  });
+
+  it('walks the DOM when no candidates are declared, and then does not', () => {
+    const few = measureCalls(<BigTable rows={3} />);
+    const many = measureCalls(<BigTable rows={300} />);
+    expect(many).toBeGreaterThan(few * 10);
+  });
+
+  it('sizes to the declared candidate, not to the rows on screen', () => {
+    // The property windowing depends on: render a different slice of the same data and
+    // the template must not move, or tracks would shift as the user scrolls.
+    const a = render(<BigTable rows={12} candidates={CANDIDATES} onResolve={() => {}} />);
+    const first = a.container.querySelector('[role="row"]').style.gridTemplateColumns;
+    a.unmount();
+
+    const b = render(<BigTable rows={40} candidates={CANDIDATES} onResolve={() => {}} />);
+    const second = b.container.querySelector('[role="row"]').style.gridTemplateColumns;
+
+    expect(second).toBe(first);
+  });
+
+  it('fits the candidate even when no row on screen is that wide', () => {
+    const seen = [];
+    render(<BigTable rows={2} candidates={CANDIDATES} merchant="M-1" onResolve={(r) => seen.push(r)} />);
+    const wide = tracks(seen.at(-1).template)[0];
+
+    const narrow = [];
+    render(<BigTable rows={2} candidates={['M-1', ...CANDIDATES.slice(1)]} onResolve={(r) => narrow.push(r)} />);
+    expect(wide).toBeGreaterThan(tracks(narrow.at(-1).template)[0]);
+  });
+
+  it('still sizes to the header when a column has no body content', () => {
+    // The header and any band line stay DOM-measured: they are bounded in number, and a
+    // column whose body is empty in this view must still fit its own label.
+    const seen = [];
+    render(<BigTable rows={2} candidates={['', '', '', '']} onResolve={(r) => seen.push(r)} />);
+    const t = tracks(seen.at(-1).template);
+    // 'Merchant' is 8 characters at the 7px-per-glyph stub, so the track clears its floor.
+    expect(t[0]).toBeGreaterThan(40);
   });
 });

@@ -93,7 +93,7 @@ function PayoutPanel({ model, nav }) {
   );
 }
 
-export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, setExpanded, stale, onRun, dismissStale, flash }) {
+function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setMr, expanded, setExpanded, stale, onRun, dismissStale, flash }) {
   const f = figures(model);
   // The whole roster, not the filtered view — tab counts report the dataset, the way
   // Breaks shows every break and Quarantine every withheld record.
@@ -163,3 +163,9 @@ export default function Report({ model, tab, nav, br, setBr, tx, setTx, mr, setM
     </main>
   );
 }
+
+// Memoized because App owns state this report does not read — chiefly `toast`, which is
+// set and cleared on every copy-to-clipboard. Without this, one click on a copy button
+// re-rendered every row of the open table twice, 2.4 seconds apart. App holds every prop
+// below at a stable identity for exactly this reason.
+export default React.memo(Report);

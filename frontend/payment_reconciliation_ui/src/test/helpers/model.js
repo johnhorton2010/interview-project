@@ -10,6 +10,32 @@ export function sampleModel() {
   return normalize(buildSamplePayload());
 }
 
+/**
+ * The sample model inflated to `n` included rows.
+ *
+ * For the paths that only engage on a large table — windowing, and the column sizing that
+ * has to stay independent of which rows are rendered. Rows are clones of the golden ones
+ * with fresh identifiers, so every category, both row shapes (with and without a ledger
+ * side) and the multi-part settlements all stay represented at any size.
+ */
+export function largeModel(n) {
+  const src = sampleModel().included;
+  const ledger = [];
+  const settle = [];
+  const rows = [];
+  for (let i = 0; i < n; i += 1) {
+    const r = src[i % src.length];
+    const sfx = `-c${i}`;
+    const l = r.ledger ? { ...r.ledger, id: r.ledger.id + sfx } : null;
+    const settlements = r.settlements.map((x) => ({ ...x, ref: x.ref + sfx }));
+    if (l) ledger.push(l);
+    settlements.forEach((x) => settle.push(x));
+    rows.push({ ...r, id: r.id + sfx, ledger: l, settlements });
+  }
+  // `src` is already the included set, so nothing here is quarantined.
+  return { ledger, settle, rows, included: rows };
+}
+
 /** A well-formed payload holding no records — App's `empty` branch. */
 export function emptyPayload() {
   return {

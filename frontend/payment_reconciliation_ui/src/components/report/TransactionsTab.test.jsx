@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderTransactions, dataRows, summaryRows, columnText, screen, within } from '../../test/helpers/render.jsx';
 import { lastDownload } from '../../test/helpers/downloads.js';
-import { sampleModel, withoutCategory, quarantineOnlyPayload } from '../../test/helpers/model.js';
+import { sampleModel, largeModel, withoutCategory, quarantineOnlyPayload } from '../../test/helpers/model.js';
 import { normalize } from '../../domain/normalize.js';
 
 // Column order in both views: id, date, Merchant, Merchant ref, Sales, Refunds, Fees,
@@ -281,6 +281,48 @@ describe('TransactionsTab', () => {
       const csv = await lastDownload();
       expect(csv.lines.length).toBeLessThan(17);
       expect(flash).toHaveBeenCalledWith(expect.stringMatching(/^transactions\.csv — \d+ rows exported$/));
+    });
+  });
+  // The paths that only engage past WINDOW_MIN rows. jsdom performs no layout, so the row
+  // metrics fall back to their estimates — which is exactly the guard being relied on
+  // here, and it is enough to exercise the geometry.
+  describe('at scale', () => {
+    const BIG = 2000;
+    // Built once: `normalize` is pure and no component mutates the model, the same
+    // invariant sampleModel() already relies on.
+    const big = largeModel(BIG);
+
+    it('renders a window onto the rows, not all of them', () => {
+      const { table } = renderTransactions({ model: big });
+
+      // A viewport's worth plus overscan, per band — not two thousand rows.
+      expect(dataRows(table()).length).toBeLessThan(120);
+      // The tie-out still counts the whole filtered set, not the rendered slice.
+      expect(tieNote()).toHaveTextContent(`All ${BIG} included rows`);
+    });
+
+    it('tells assistive tech how long the table really is', () => {
+      const { table } = renderTransactions({ model: big });
+      expect(table()).toHaveAttribute('aria-rowcount', String(BIG + 1));
+    });
+
+    it('sizes its columns off the data, so the grand total cannot clip', () => {
+      const { table } = renderTransactions({ model: big });
+      const grand = summaryRows(table()).at(-1);
+      const cells = within(grand).getAllByRole('cell');
+      // Cells on a summary row are: label, count, then the six money columns.
+      // Each prints a whole figure, thousands separators and all — not a truncation.
+      expect(cells[2].textContent).toMatch(/^\$[\d,]+\.\d\d$/); // sales
+      expect(cells.at(-1).textContent).toMatch(/^[+−]\$[\d,]+\.\d\d$/); // discrepancy
+    });
+
+    it('exports every filtered row, not the rendered window', async () => {
+      const { user, flash } = renderTransactions({ model: big });
+      await exportCsv(user);
+
+      const csv = await lastDownload();
+      expect(csv.lines).toHaveLength(BIG + 1); // header + every row
+      expect(flash).toHaveBeenCalledWith(`transactions.csv — ${BIG} rows exported`);
     });
   });
 });

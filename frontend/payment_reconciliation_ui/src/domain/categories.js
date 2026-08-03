@@ -63,21 +63,42 @@ export const CATS = {
 };
 
 /**
+ * Resolved metadata, one object per distinct category string.
+ *
+ * This used to allocate on every call, which the sort comparators made expensive: sorting
+ * a table by category calls it twice per comparison, so an n·log n sort became n·log n
+ * object allocations. Bounded by the vocabulary above plus whatever unknown values one
+ * payload carries, so it cannot grow without bound. Frozen because the object is now
+ * shared rather than freshly built — a mutation here would rewrite the vocabulary for the
+ * whole app rather than for one caller.
+ */
+const RESOLVED = new Map();
+
+/**
  * Resolve category metadata. Unknown categories (e.g. a future backend value such
  * as IN_PROGRESS) are retained with a neutral badge and the raw string as the label,
  * per PRD §6.4 — forward-compatible rather than throwing.
+ *
+ * The returned object is shared and frozen; treat it as read-only.
  * @param {string} cat
  */
 export function getCategory(cat) {
+  let v = RESOLVED.get(cat);
+  if (v) return v;
   const known = CATS[cat];
-  if (known) return { ...known, key: cat, known: true };
-  return {
-    key: cat,
-    label: cat || '(unknown)',
-    sev: 'low',
-    explain: 'Category reported by the backend that this client does not recognise. Shown as-is.',
-    known: false,
-  };
+  v = Object.freeze(
+    known
+      ? { ...known, key: cat, known: true }
+      : {
+          key: cat,
+          label: cat || '(unknown)',
+          sev: 'low',
+          explain: 'Category reported by the backend that this client does not recognise. Shown as-is.',
+          known: false,
+        },
+  );
+  RESOLVED.set(cat, v);
+  return v;
 }
 
 /** A break is any row whose category is not a clean match (PRD FR-7.1). */

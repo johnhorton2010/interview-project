@@ -10,8 +10,35 @@ const isSale = (l) => l.type === 'SALE';
 const isRefund = (l) => l.type === 'REFUND';
 const notQuar = (x) => x.category !== 'QUARANTINE';
 
+/**
+ * Per-model result cache for the three whole-model rollups below.
+ *
+ * Each is a dozen passes over the model, and the report calls `figures` five times before
+ * a single row is drawn — once for the headline tiles, once inside PayoutPanel, once in
+ * CategoryTable, once in TransactionsTab, and once from `categorySummary` here. None of
+ * them can tell it is the fifth caller, and threading the result through as a prop would
+ * mean five signature changes to say something the module header already says: these are
+ * pure functions of the model.
+ *
+ * So key the result on the model object itself. `normalize()` builds a model once and
+ * nothing mutates it afterwards, which makes object identity a sound cache key. A WeakMap
+ * rather than a Map so a cached rollup cannot outlive the report it describes — importing
+ * fresh data replaces the model, and the old entry becomes collectable with it.
+ */
+const rollupCache = new WeakMap();
+function oncePerModel(model, key, compute) {
+  let byKey = rollupCache.get(model);
+  if (!byKey) rollupCache.set(model, (byKey = {}));
+  if (!(key in byKey)) byKey[key] = compute();
+  return byKey[key];
+}
+
 /** Headline figures over included (non-quarantined) records (PRD §7.3). */
 export function figures(model) {
+  return oncePerModel(model, 'figures', () => computeFigures(model));
+}
+
+function computeFigures(model) {
   const L = model.ledger.filter(notQuar);
   const S = model.settle.filter(notQuar);
   const sales = L.filter(isSale).reduce((n, l) => n + (l.gross || 0), 0);
@@ -78,6 +105,10 @@ export function orderedCategories(present, keep = () => true) {
 
 /** Category summary rows + totals (PRD §7.5). */
 export function categorySummary(model) {
+  return oncePerModel(model, 'categorySummary', () => computeCategorySummary(model));
+}
+
+function computeCategorySummary(model) {
   const present = model.rows.map((r) => r.category).concat(model.settle.map((x) => x.category));
   const rows = orderedCategories(present).map((k) => {
     const meta = getCategory(k);
@@ -169,19 +200,31 @@ function quarantineByMerchant(model) {
 
 /** Per-merchant rollup, unioned across both sides, sorted by |discrepancy| (PRD §7.6). */
 export function merchantRollup(model) {
+  return oncePerModel(model, 'merchantRollup', () => computeMerchantRollup(model));
+}
+
+function computeMerchantRollup(model) {
   const quarByMerchant = quarantineByMerchant(model);
-  const ids = [];
+  // One grouping pass, not a scan per merchant. The roster used to be built with
+  // `ids.indexOf` inside a forEach and then each merchant's rows found with a fresh
+  // `included.filter`, which is O(rows × merchants) — and Report calls this on every
+  // render just to put a count in the Merchants tab label.
+  const byMerchant = new Map();
   model.included.forEach((r) => {
-    if (ids.indexOf(r.merchantId) < 0) ids.push(r.merchantId);
+    let rs = byMerchant.get(r.merchantId);
+    if (!rs) byMerchant.set(r.merchantId, (rs = []));
+    rs.push(r);
   });
   Object.keys(quarByMerchant).forEach((id) => {
-    if (ids.indexOf(id) < 0) ids.push(id);
+    if (!byMerchant.has(id)) byMerchant.set(id, []);
   });
-  ids.sort();
+  // Retained: `sort` is stable, so the |discrepancy| sort below leaves merchants tied on
+  // discrepancy — every quarantine-only merchant, all pinned at -1 — in merchant-id order.
+  const ids = [...byMerchant.keys()].sort();
 
   const rows = ids
     .map((id) => {
-      const rs = model.included.filter((r) => r.merchantId === id);
+      const rs = byMerchant.get(id);
       const quar = quarByMerchant[id] || 0;
       const quarantineOnly = rs.length === 0;
       const ls = rs.map((r) => r.ledger).filter(Boolean);

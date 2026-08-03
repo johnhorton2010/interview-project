@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getReconciliations, runReconciliation } from './api/reconciliations.js';
 import { validateLedgerFile, uploadLedger } from './api/ledger.js';
 import { validateSettlementFile, parseAndValidateSettlements, uploadSettlements } from './api/settlements.js';
@@ -112,33 +112,53 @@ export default function App() {
   const hasReport = data.status === 'ready';
   const effImportOpen = importOpen === null ? !hasReport : importOpen;
 
-  const scrollTabs = () =>
-    setTimeout(() => document.getElementById('report-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+  // Every nav jump scrolls the tab strip into view, but only after the destination tab has
+  // rendered — scrolling first lands on the old layout. This used to be a bare 40ms
+  // setTimeout, which is a guess at how long a render takes and got slower as the tables
+  // grew. `navSeq` rather than `tab` as the trigger because re-selecting the tab you are
+  // already on is still a jump worth scrolling for.
+  const [navSeq, setNavSeq] = useState(0);
+  useEffect(() => {
+    if (navSeq === 0) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document
+      .getElementById('report-tabs')
+      ?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  }, [navSeq]);
 
-  const nav = {
-    goTab: (t) => {
-      setTab(t);
-      scrollTabs();
-    },
-    toBreaks: (patch = {}) => {
-      const { expanded: exp, ...rest } = patch;
-      setBr((b) => ({ ...b, query: '', catFilter: [], merchantFilter: null, sortKey: 'impact', sortDir: 'desc', ...rest }));
-      setExpanded(exp ?? null);
-      setTab('breaks');
-      scrollTabs();
-    },
-    toTransactions: (patch = {}) => {
-      setTx((t) => ({ ...t, query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', ...patch }));
-      setExpanded(null);
-      setTab('transactions');
-      scrollTabs();
-    },
-    toQuarantine: () => {
-      setExpanded(null);
-      setTab('quarantine');
-      scrollTabs();
-    },
-  };
+  // Stable identities: `nav` used to be a fresh object of fresh closures on every render,
+  // which would defeat React.memo on Report and hand every tab a changed prop each time a
+  // toast appeared.
+  const goTab = useCallback((t) => {
+    setTab(t);
+    setNavSeq((n) => n + 1);
+  }, []);
+
+  const toBreaks = useCallback((patch = {}) => {
+    const { expanded: exp, ...rest } = patch;
+    setBr((b) => ({ ...b, query: '', catFilter: [], merchantFilter: null, sortKey: 'impact', sortDir: 'desc', ...rest }));
+    setExpanded(exp ?? null);
+    setTab('breaks');
+    setNavSeq((n) => n + 1);
+  }, []);
+
+  const toTransactions = useCallback((patch = {}) => {
+    setTx((t) => ({ ...t, query: '', cats: [], type: 'all', view: 'ledger', sortKey: 'disc', sortDir: 'desc', ...patch }));
+    setExpanded(null);
+    setTab('transactions');
+    setNavSeq((n) => n + 1);
+  }, []);
+
+  const toQuarantine = useCallback(() => {
+    setExpanded(null);
+    setTab('quarantine');
+    setNavSeq((n) => n + 1);
+  }, []);
+
+  const nav = useMemo(
+    () => ({ goTab, toBreaks, toTransactions, toQuarantine }),
+    [goTab, toBreaks, toTransactions, toQuarantine],
+  );
 
   const handleLedgerFile = async (file) => {
     setImportErr(null);
@@ -194,7 +214,7 @@ export default function App() {
     }
   };
 
-  const onRun = async () => {
+  const onRun = useCallback(async () => {
     if (busy) return;
     setBusy('run');
     try {
@@ -211,7 +231,9 @@ export default function App() {
     } finally {
       setBusy(null);
     }
-  };
+  }, [busy, reload, markStale, flash]);
+
+  const dismissStale = useCallback(() => markStale(false), [markStale]);
 
   const onRefresh = async () => {
     await reload();
@@ -310,7 +332,7 @@ export default function App() {
           setExpanded={setExpanded}
           stale={stale}
           onRun={onRun}
-          dismissStale={() => markStale(false)}
+          dismissStale={dismissStale}
           flash={flash}
         />
       )}

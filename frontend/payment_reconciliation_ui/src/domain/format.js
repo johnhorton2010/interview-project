@@ -4,15 +4,19 @@
 // Strings only — what ink a figure takes is a styling question, answered by
 // the colour helpers in styles/table.js.
 
+// One formatter, constructed once at module load. `Number.prototype.toLocaleString(locale,
+// opts)` builds a fresh Intl.NumberFormat on every call, and `fmt` is the hottest function
+// in the app — six money columns on every row of every table, re-run on every render. The
+// output is byte-identical either way; only the construction cost differs.
+const MONEY = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 /** "$1,234.56" / "−$65.64" (leading minus, not parentheses — PRD §10.2). */
 export function fmt(c) {
   if (c === null || c === undefined) return '—';
-  const abs = Math.abs(c);
-  const s = (abs / 100).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return (c < 0 ? '−$' : '$') + s;
+  return (c < 0 ? '−$' : '$') + MONEY.format(Math.abs(c) / 100);
 }
 
 /** Signed variant used for discrepancy/impact: "+$3.50", "−$65.64", "$0.00". */

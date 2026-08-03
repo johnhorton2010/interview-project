@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useCallback, useDeferredValue } from 'react';
 import { matchAll, refOf, figures, saleOf, refundOf, orderedCategories } from '../../domain/selectors.js';
 import { getCategory, QUARANTINE } from '../../domain/categories.js';
 import { fmt, sfmt, neg, dec, decNeg, shortRefOf, downloadCsv } from '../../domain/format.js';
 import { C, MONO, SANS, INK, INK2, NEG, ACCENT, SEV_COLOR } from '../../styles/tokens.js';
 import { useColumns } from '../../styles/columns.js';
+import { useWindowedRows, useRowMetrics } from '../../hooks/useWindowedRows.js';
 import { TABLE_INSET, bodyRow, headerRow, totalRow, totalLabel, rowRule, figureColor, discColor, deductionColor, labelColor } from '../../styles/table.js';
 import { HoverRow, SevDot, GhostButton, useDismiss, SegGroup, copyText, FilterStrip } from '../common.jsx';
 import { SortHeader, BandLabel, EmptyState, TableFooter, GlyphKey } from './TableParts.jsx';
@@ -52,7 +53,7 @@ const SectionHeader = ({ children, labels, overrides, help, template, gap, col }
 // down here can widen the column it sits under — a second item just overflows into
 // the next one. Anything that needs to sit beside a value belongs in the row.
 const Subline = ({ text, label, display, onToggle, flash, disabled }) => (
-  <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
+  <div data-row-sub onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${TABLE_INSET}px 7px`, marginTop: -4, cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>
     {disabled ? (
       <span>{display}</span>
     ) : (
@@ -139,6 +140,262 @@ const SEARCH_TITLE =
 const str = (a, b) => String(a || '').localeCompare(String(b || ''));
 const num = (a, b) => (a === null ? 0 : a) - (b === null ? 0 : b);
 
+const feesOf = (x) => (x.interchange || 0) + (x.processor || 0);
+
+// ---- cells -----------------------------------------------------------------
+//
+// Every cell takes its column's style fragment and merges it last, so alignment and the
+// R5 left pad come from LSPEC by position and a body cell can never drift out of step
+// with the header row. The fragments arrive as one `colStyles` array rather than being
+// looked up per cell: they are then stable objects, which is what lets the row components
+// below stay memoized.
+
+const cell = (key, colStyle, content, opts = {}) => (
+  <span
+    key={key}
+    role="cell"
+    title={opts.title}
+    style={{
+      textAlign: opts.right ? 'right' : 'left',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      color: opts.color || INK,
+      fontFamily: opts.sans ? SANS : MONO,
+      fontWeight: opts.weight,
+      fontSize: opts.size,
+      ...colStyle,
+    }}
+  >
+    {content}
+  </span>
+);
+
+/** Category cell: severity swatch plus the label in row ink (design lines 553, 656). */
+const catCell = (key, colStyle, category) => {
+  const meta = getCategory(category);
+  return (
+    <span key={key} role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: SANS, minWidth: 0, ...colStyle }}>
+      <SevDot color={SEV_COLOR[meta.sev]} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label}</span>
+    </span>
+  );
+};
+
+/**
+ * Identifier cell: click-to-copy, matching the design's `onCopyId` buttons, plus an
+ * optional "which payout of how many" marker.
+ *
+ * The marker is a sibling of the button, not its content: it is not part of the ref,
+ * and `copyText` must keep copying the bare identifier.
+ *
+ * It sizes nothing, so two rows in twenty do not widen this column for all of them —
+ * `data-col-ignore` states that for the DOM-walking path in useColumns, and this tab's
+ * candidate builder simply never offers it. In exchange it gets no reserved width, so the
+ * cell drops `overflow: hidden` to let it use the gutter. That is bounded: even at the
+ * slack floor the marker spills ~7px into a 16px gap, so it cannot reach the next column.
+ * Cells without a marker keep the clip, and with it the ellipsis on long ids.
+ */
+const idCell = (key, colStyle, flash, display, text, label, part) => (
+  <span key={key} role="cell" style={{ overflow: part ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...colStyle }}>
+    <CopyButton text={text} label={label} display={display} flash={flash} />
+    {part && (
+      <span data-col-ignore style={{ marginLeft: 6, fontSize: 10, color: C.dim }} title={`Payout ${part} of this transaction`}>
+        {part}
+      </span>
+    )}
+  </span>
+);
+
+/**
+ * The chrome every body row shares: hover tint, the grid row, the optional subline and
+ * the expanded detail.
+ *
+ * Hover lives on the wrapper so the cells, the subline and the expanded detail all tint
+ * together as one row (design lines 540/560, 643/663).
+ */
+function RowShell({ rowKey, rowIndex, open, template, gap, cells, row, model, subline, flash, onToggle }) {
+  const toggle = useCallback(() => onToggle(rowKey), [onToggle, rowKey]);
+  return (
+    // `data-row-h` / `data-row-open` are what useRowMetrics measures: windowing needs a
+    // real row height, and a constant here would desync from the type scale the first
+    // time either it or the row padding changed.
+    <HoverRow data-row-h data-row-open={open || undefined} style={rowRule} hoverStyle={{ background: C.hover }}>
+      <div role="row" aria-rowindex={rowIndex} aria-expanded={open} onClick={toggle} style={{ ...bodyRow(template, gap), background: open ? C.hover : 'transparent', alignItems: 'center' }}>
+        {cells}
+      </div>
+      {subline && <Subline {...subline} onToggle={toggle} flash={flash} />}
+      {open && row && <BreakDetail row={row} model={model} />}
+    </HoverRow>
+  );
+}
+
+/**
+ * One ledger transaction — the ledger view's body row, and the unattributed-settlement
+ * band's too.
+ *
+ * Memoized, along with the two below. A long table renders a window onto its rows and
+ * re-slices that window as the page scrolls, so without this every row still on screen
+ * would re-render on every scroll tick. `r` comes straight out of the model and the rest
+ * of the props are held stable by the parent, so a re-render costs one identity check per
+ * row that has not changed.
+ */
+const LedgerRow = React.memo(function LedgerRow({ r, rowIndex, open, template, gap, colStyles, model, flash, onToggle }) {
+  // null, not 0, when nothing settled, matching BreaksTab: no fee or settlement data
+  // exists, which is distinct from either being genuinely zero. Fees follow Settled —
+  // a row with no payout was never charged, so both read as absent, not as zero. A row
+  // folding several payouts into this sum is flagged by the subline's ref count and by
+  // its category, so the figure itself carries no marker.
+  const actual = r.settlements.length ? r.rowActual : null;
+  const fees = r.settlements.length ? r.rowFees : null;
+  const captured = r.ledger ? r.ledger.capturedAt : 'no ledger';
+  const ref = r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—';
+  const refs = r.settlements.map((x) => x.ref);
+  const refDisplay = refs.length ? shortRefOf(refs[0]) + (refs.length > 1 ? ` +${refs.length - 1}` : '') : '';
+  const c = colStyles;
+  return (
+    <RowShell
+      rowKey={r.id}
+      rowIndex={rowIndex}
+      open={open}
+      template={template}
+      gap={gap}
+      row={r}
+      model={model}
+      flash={flash}
+      onToggle={onToggle}
+      cells={[
+        r.ledger
+          ? idCell(0, c[0], flash, r.ledger.id, r.ledger.id, 'Identifier')
+          : idCell(0, c[0], flash, shortRefOf(r.settlements[0].ref), r.settlements[0].ref, 'Network ref'),
+        // 'no ledger' reads at full label weight, like the date it replaces. A dash is a
+        // placeholder and recedes; a phrase is a statement of fact — here, the most
+        // interesting thing on the row — so it is content and reads like content.
+        cell(1, c[1], captured, { color: INK2, size: 12 }),
+        cell(2, c[2], r.merchantId, { color: INK2, size: 12 }),
+        cell(3, c[3], ref, { color: labelColor(ref), size: 12 }),
+        cell(4, c[4], fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
+        cell(5, c[5], neg(refundOf(r)), { right: true, color: deductionColor(refundOf(r)) }),
+        cell(6, c[6], neg(fees), { right: true, color: deductionColor(fees) }),
+        cell(7, c[7], fmt(r.rowExpected), { right: true, color: figureColor(r.rowExpected) }),
+        cell(8, c[8], fmt(actual), { right: true, color: figureColor(actual) }),
+        cell(9, c[9], sfmt(r.rowImpact), { right: true, weight: 500, color: discColor(r.rowImpact) }),
+        catCell(10, c[10], r.category),
+        cell(11, c[11], open ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
+      ]}
+      // Gated on the ledger side, not on refs (design: `hasRefSubline: !!r.ledger`).
+      // An unattributed row already shows its network ref in the id cell, so a subline
+      // there would repeat it verbatim; a row with a ledger side but no payout instead
+      // states the absence.
+      subline={
+        r.ledger
+          ? {
+              text: refs.join(' '),
+              label: refs.length > 1 ? 'Network refs' : 'Network ref',
+              display: refs.length ? refDisplay : 'no settlement',
+              disabled: !refs.length,
+            }
+          : null
+      }
+    />
+  );
+});
+
+/** One processor settlement, with 〃 standing in for the figures its carrier row prints. */
+const SettleRow = React.memo(function SettleRow({ o, carrierPart, rowIndex, open, template, gap, colStyles, model, flash, onToggle }) {
+  const { r, x, part, parts } = o;
+  const carrier = carrierPart === part;
+  // One string for every carried cell, as the design's `inheritTitle` does: the
+  // ledger-side figures belong to the transaction, not to each payout. Fees and Settled
+  // are the only money columns that are per-payout here.
+  const inheritTitle = carrier
+    ? ''
+    : `Same ledger transaction — sales, refunds, expected pay and discrepancy are shown on part ${carrierPart} of ${parts}`;
+  const c = colStyles;
+  // Carried cell: the figure on the carrier row, 〃 on every later part.
+  const carried = (i, content, color) =>
+    cell(i, c[i], carrier ? content : '〃', { right: true, color: carrier ? color || INK : C.dim, title: inheritTitle });
+  return (
+    <RowShell
+      rowKey={x.ref}
+      rowIndex={rowIndex}
+      open={open}
+      template={template}
+      gap={gap}
+      row={r}
+      model={model}
+      flash={flash}
+      onToggle={onToggle}
+      cells={[
+        idCell(0, c[0], flash, shortRefOf(x.ref), x.ref, 'Network ref', parts > 1 ? `${part}/${parts}` : null),
+        cell(1, c[1], x.date, { color: labelColor(x.date), size: 12 }),
+        cell(2, c[2], x.merchantId, { color: INK2, size: 12 }),
+        cell(3, c[3], x.merchantRef || '—', { color: labelColor(x.merchantRef), size: 12 }),
+        carried(4, fmt(saleOf(r)), figureColor(saleOf(r))),
+        carried(5, neg(refundOf(r)), deductionColor(refundOf(r))),
+        // Fees are per-payout, so this cell is never carried — a settlement that deducted
+        // nothing shows $0.00, not the dash that means "no data".
+        cell(6, c[6], neg(feesOf(x)), { right: true, color: deductionColor(feesOf(x)) }),
+        carried(7, fmt(r.rowExpected), figureColor(r.rowExpected)),
+        cell(8, c[8], fmt(x.settled), { right: true, color: figureColor(x.settled) }),
+        cell(9, c[9], carrier ? sfmt(r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? discColor(r.rowImpact) : C.dim, title: inheritTitle }),
+        catCell(10, c[10], r.category),
+        cell(11, c[11], open ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
+      ]}
+      subline={r.ledger ? { text: r.ledger.id, label: 'Internal txn id', display: r.ledger.id } : null}
+    />
+  );
+});
+
+/** A ledger transaction the processor never paid out — the settlement view's second band. */
+const NeverSettledRow = React.memo(function NeverSettledRow({ r, rowIndex, open, template, gap, colStyles, model, flash, onToggle }) {
+  const c = colStyles;
+  return (
+    <RowShell
+      rowKey={r.id}
+      rowIndex={rowIndex}
+      open={open}
+      template={template}
+      gap={gap}
+      row={r}
+      model={model}
+      flash={flash}
+      onToggle={onToggle}
+      cells={[
+        // No network ref exists for this row, so the id column carries the ledger txn id —
+        // its only identifier — rather than a bare dash.
+        idCell(0, c[0], flash, r.ledger.id, r.ledger.id, 'Identifier'),
+        cell(1, c[1], 'unsettled', { color: INK2, sans: true, size: 12 }),
+        cell(2, c[2], r.merchantId, { color: INK2, size: 12 }),
+        cell(3, c[3], r.ledger.merchantRef || '—', { color: labelColor(r.ledger.merchantRef), size: 12 }),
+        cell(4, c[4], fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
+        cell(5, c[5], neg(refundOf(r)), { right: true, color: deductionColor(refundOf(r)) }),
+        // No payout, so no fees were ever deducted and nothing was settled. Both read as
+        // absent rather than zero — expected pay is the gross.
+        cell(6, c[6], neg(null), { right: true, color: deductionColor(null) }),
+        cell(7, c[7], fmt(r.rowExpected), { right: true, color: figureColor(r.rowExpected) }),
+        cell(8, c[8], fmt(null), { right: true, color: figureColor(null) }),
+        cell(9, c[9], sfmt(r.rowImpact), { right: true, weight: 500, color: discColor(r.rowImpact) }),
+        catCell(10, c[10], r.category),
+        cell(11, c[11], open ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
+      ]}
+      // The txn id now sits in the id cell above, so a subline would repeat it.
+      subline={null}
+    />
+  );
+});
+
+const zeroTotals = () => ({ sales: 0, refunds: 0, fees: 0, expected: 0, settled: 0, impact: 0 });
+
+// Positions in LSPEC that hold money. Used when sizing columns, where a money column is
+// fitted to the largest magnitude it prints rather than to the longest string it holds.
+const MONEY_COLS = new Set([4, 5, 6, 7, 8, 9]);
+
+// Shared empties for the view that is not on screen, so switching views does not hand the
+// inactive branch a fresh array identity every render.
+const EMPTY_LEDGER = { rows: [], orphans: [] };
+const EMPTY_SETTLE = { rows: [], carrierOf: {}, neverSettled: [] };
+
 function SortH({ label, k, tx, setTx, colStyle, help }) {
   const onClick = () => setTx((t) => (t.sortKey === k ? { ...t, sortKey: k, sortDir: t.sortDir === 'asc' ? 'desc' : 'asc' } : { ...t, sortKey: k, sortDir: NATURAL[k] }));
   return (
@@ -156,96 +413,145 @@ function SortH({ label, k, tx, setTx, colStyle, help }) {
 export default function TransactionsTab({ model, tx, setTx, expanded, setExpanded, flash }) {
   const catMenuRef = useDismiss(tx.catOpen, () => setTx((t) => ({ ...t, catOpen: false })));
   const tableRef = useRef(null);
-  const { template: COLS, gap: GAP, cell: col } = useColumns(tableRef, LSPEC);
   const f = figures(model);
   const settleCentric = tx.view === 'settlement';
   const L = LABELS[settleCentric ? 'settlement' : 'ledger'];
   // Six of these swap with the view — see columnHelp.js.
   const HELP = transactionsHelp(settleCentric);
 
-  const txVisible = model.included.filter((r) => {
-    if (tx.cats.length && !tx.cats.includes(r.category)) return false;
-    if (tx.type !== 'all' && (!r.ledger || r.ledger.type !== tx.type)) return false;
-    return matchAll(r, tx.query);
-  });
+  // The input stays synchronous; the filter behind it is allowed to lag a frame. Every
+  // keystroke re-filters, re-sorts and re-renders the whole table, which is more work
+  // than a keypress can afford to block on once the dataset is large.
+  const query = useDeferredValue(tx.query);
 
-  const flip = tx.sortDir === 'asc' ? 1 : -1;
-  const catCounts = {};
-  model.included.forEach((r) => (catCounts[r.category] = (catCounts[r.category] || 0) + 1));
+  const txVisible = useMemo(
+    () =>
+      model.included.filter((r) => {
+        if (tx.cats.length && !tx.cats.includes(r.category)) return false;
+        if (tx.type !== 'all' && (!r.ledger || r.ledger.type !== tx.type)) return false;
+        return matchAll(r, query);
+      }),
+    [model, tx.cats, tx.type, query],
+  );
+
+  const catCounts = useMemo(() => {
+    const counts = {};
+    model.included.forEach((r) => (counts[r.category] = (counts[r.category] || 0) + 1));
+    return counts;
+  }, [model]);
+
   // Every category this tab can show, whether or not the dataset produced it — the same
   // rule the Summary rows follow. QUARANTINE is the one exclusion: those records are on
   // their own tab and never in `included`, so the checkbox could only ever match nothing.
-  const catOptions = orderedCategories([...model.included.map((r) => r.category), ...tx.cats], (k) => k !== QUARANTINE);
+  const catOptions = useMemo(
+    () => orderedCategories([...model.included.map((r) => r.category), ...tx.cats], (k) => k !== QUARANTINE),
+    [model, tx.cats],
+  );
 
   // ---- ledger view rows
-  const ledgerCmp = {
-    id: (a, b) => str(a.ledger ? a.ledger.id : '', b.ledger ? b.ledger.id : ''),
-    captured: (a, b) => str(a.ledger ? a.ledger.capturedAt : '', b.ledger ? b.ledger.capturedAt : ''),
-    merchant: (a, b) => str(a.merchantId, b.merchantId),
-    ref: (a, b) => str(refOf(a), refOf(b)),
-    sales: (a, b) => num(saleOf(a), saleOf(b)),
-    refunds: (a, b) => num(refundOf(a), refundOf(b)),
-    expected: (a, b) => num(a.rowExpected, b.rowExpected),
-    settled: (a, b) => num(a.rowActual, b.rowActual),
-    fees: (a, b) => num(a.rowFees, b.rowFees),
-    disc: (a, b) => Math.abs(a.rowImpact) - Math.abs(b.rowImpact),
-    category: (a, b) => getCategory(a.category).label.localeCompare(getCategory(b.category).label),
-  };
-  const lBase = ledgerCmp[tx.sortKey] || ledgerCmp.disc;
-  const ledgerRows = txVisible.filter((r) => r.ledger).slice().sort((a, b) => lBase(a, b) * flip || a.id.localeCompare(b.id));
-  const orphanRows = txVisible.filter((r) => !r.ledger);
+  // Each view builds only its own rows: the inactive one returns EMPTY rather than sorting
+  // a set nothing will render.
+  const ledger = useMemo(() => {
+    if (settleCentric) return EMPTY_LEDGER;
+    const flip = tx.sortDir === 'asc' ? 1 : -1;
+    const ledgerCmp = {
+      id: (a, b) => str(a.ledger ? a.ledger.id : '', b.ledger ? b.ledger.id : ''),
+      captured: (a, b) => str(a.ledger ? a.ledger.capturedAt : '', b.ledger ? b.ledger.capturedAt : ''),
+      merchant: (a, b) => str(a.merchantId, b.merchantId),
+      ref: (a, b) => str(refOf(a), refOf(b)),
+      sales: (a, b) => num(saleOf(a), saleOf(b)),
+      refunds: (a, b) => num(refundOf(a), refundOf(b)),
+      expected: (a, b) => num(a.rowExpected, b.rowExpected),
+      settled: (a, b) => num(a.rowActual, b.rowActual),
+      fees: (a, b) => num(a.rowFees, b.rowFees),
+      disc: (a, b) => Math.abs(a.rowImpact) - Math.abs(b.rowImpact),
+      category: (a, b) => getCategory(a.category).label.localeCompare(getCategory(b.category).label),
+    };
+    const lBase = ledgerCmp[tx.sortKey] || ledgerCmp.disc;
+    return {
+      rows: txVisible.filter((r) => r.ledger).slice().sort((a, b) => lBase(a, b) * flip || a.id.localeCompare(b.id)),
+      orphans: txVisible.filter((r) => !r.ledger),
+    };
+  }, [settleCentric, txVisible, tx.sortKey, tx.sortDir]);
+  const { rows: ledgerRows, orphans: orphanRows } = ledger;
 
   // ---- settlement view rows (grouped, contiguous parts, 〃 for carried figures)
-  const feesOf = (x) => (x.interchange || 0) + (x.processor || 0);
-  const settleCmp = {
-    id: (a, b) => str(a.x.ref, b.x.ref),
-    captured: (a, b) => str(a.x.date, b.x.date),
-    merchant: (a, b) => str(a.x.merchantId, b.x.merchantId),
-    ref: (a, b) => str(a.x.merchantRef, b.x.merchantRef),
-    sales: (a, b) => num(saleOf(a.r), saleOf(b.r)),
-    refunds: (a, b) => num(refundOf(a.r), refundOf(b.r)),
-    expected: (a, b) => num(a.r.rowExpected, b.r.rowExpected),
-    settled: (a, b) => num(a.x.settled, b.x.settled),
-    fees: (a, b) => num(feesOf(a.x), feesOf(b.x)),
-    disc: (a, b) => Math.abs(a.r.rowImpact) - Math.abs(b.r.rowImpact),
-    category: (a, b) => getCategory(a.r.category).label.localeCompare(getCategory(b.r.category).label),
-  };
-  const sBase = settleCmp[tx.sortKey] || settleCmp.disc;
-  const sCmp = (a, b) => sBase(a, b) * flip || str(a.x.ref, b.x.ref);
-  const groupMap = new Map();
-  txVisible.forEach((r) => r.settlements.forEach((x) => {
-    if (!groupMap.has(r.id)) groupMap.set(r.id, []);
-    groupMap.get(r.id).push({ r, x });
-  }));
-  const groups = [...groupMap.values()];
-  groups.forEach((g) => g.sort(sCmp));
-  groups.sort((a, b) => sCmp(a[0], b[0]));
-  const settleRows = groups.flat();
-  const carrierOf = {};
-  settleRows.forEach((o) => {
-    if (carrierOf[o.r.id] === undefined) carrierOf[o.r.id] = o.r.settlements.indexOf(o.x) + 1;
-  });
-  const neverSettled = txVisible.filter((r) => r.ledger && r.settlements.length === 0);
+  const settle = useMemo(() => {
+    if (!settleCentric) return EMPTY_SETTLE;
+    const flip = tx.sortDir === 'asc' ? 1 : -1;
+    const settleCmp = {
+      id: (a, b) => str(a.x.ref, b.x.ref),
+      captured: (a, b) => str(a.x.date, b.x.date),
+      merchant: (a, b) => str(a.x.merchantId, b.x.merchantId),
+      ref: (a, b) => str(a.x.merchantRef, b.x.merchantRef),
+      sales: (a, b) => num(saleOf(a.r), saleOf(b.r)),
+      refunds: (a, b) => num(refundOf(a.r), refundOf(b.r)),
+      expected: (a, b) => num(a.r.rowExpected, b.r.rowExpected),
+      settled: (a, b) => num(a.x.settled, b.x.settled),
+      fees: (a, b) => num(feesOf(a.x), feesOf(b.x)),
+      disc: (a, b) => Math.abs(a.r.rowImpact) - Math.abs(b.r.rowImpact),
+      category: (a, b) => getCategory(a.r.category).label.localeCompare(getCategory(b.r.category).label),
+    };
+    const sBase = settleCmp[tx.sortKey] || settleCmp.disc;
+    const sCmp = (a, b) => sBase(a, b) * flip || str(a.x.ref, b.x.ref);
+    const groupMap = new Map();
+    txVisible.forEach((r) => {
+      const parts = r.settlements.length;
+      r.settlements.forEach((x, i) => {
+        let g = groupMap.get(r.id);
+        if (!g) groupMap.set(r.id, (g = []));
+        // `part` is stamped here, at the one point the settlement's position in its
+        // transaction is already known. It used to be recovered later with
+        // `settlements.indexOf(x)` — a linear scan re-run per rendered row and per
+        // exported row, for an index this loop is holding.
+        g.push({ r, x, part: i + 1, parts });
+      });
+    });
+    const groups = [...groupMap.values()];
+    groups.forEach((g) => g.sort(sCmp));
+    groups.sort((a, b) => sCmp(a[0], b[0]));
+    // Groups are keyed by row id and stay contiguous, so the carrier is simply whichever
+    // part sorted to the front of its own group.
+    const carrierOf = {};
+    groups.forEach((g) => (carrierOf[g[0].r.id] = g[0].part));
+    return {
+      rows: groups.flat(),
+      carrierOf,
+      neverSettled: txVisible.filter((r) => r.ledger && r.settlements.length === 0),
+    };
+  }, [settleCentric, txVisible, tx.sortKey, tx.sortDir]);
+  const { rows: settleRows, carrierOf, neverSettled } = settle;
 
   // ---- totals
   // Always reduce over distinct ReconRows, never over rendered rows: in settlement view
   // one transaction spans several rows, and its ledger-side figures belong to the
   // transaction (hence the 〃 on later parts), so per-row sums would double-count them.
-  const totalsOf = (rows) => ({
-    sales: rows.reduce((n, r) => n + (saleOf(r) || 0), 0),
-    refunds: rows.reduce((n, r) => n + (refundOf(r) || 0), 0),
-    fees: rows.reduce((n, r) => n + r.rowFees, 0),
-    expected: rows.reduce((n, r) => n + r.rowExpected, 0),
-    settled: rows.reduce((n, r) => n + r.rowActual, 0),
-    impact: rows.reduce((n, r) => n + r.rowImpact, 0),
-  });
+  //
+  // The two bands partition txVisible in both views, so one pass yields both subtotals and
+  // the grand total is their sum. This was six reduce passes per band, run three times.
+  const totals = useMemo(() => {
+    const inBand1 = settleCentric ? (r) => r.settlements.length > 0 : (r) => !!r.ledger;
+    const t1 = zeroTotals();
+    const t2 = zeroTotals();
+    let n1 = 0;
+    let n2 = 0;
+    txVisible.forEach((r) => {
+      const t = inBand1(r) ? ((n1 += 1), t1) : ((n2 += 1), t2);
+      t.sales += saleOf(r) || 0;
+      t.refunds += refundOf(r) || 0;
+      t.fees += r.rowFees;
+      t.expected += r.rowExpected;
+      t.settled += r.rowActual;
+      t.impact += r.rowImpact;
+    });
+    const grand = zeroTotals();
+    Object.keys(grand).forEach((k) => (grand[k] = t1[k] + t2[k]));
+    return { t1, t2, n1, n2, grand };
+  }, [settleCentric, txVisible]);
 
-  // The two bands partition txVisible in both views, so sec1 + sec2 = the grand total.
-  const sec1 = settleCentric ? txVisible.filter((r) => r.settlements.length > 0) : ledgerRows;
-  const sec2 = settleCentric ? neverSettled : orphanRows;
   // Only worth splitting out subtotals when both bands actually have rows — otherwise a
   // subtotal just restates the grand total sitting directly beneath it.
-  const split = sec1.length > 0 && sec2.length > 0;
+  const split = totals.n1 > 0 && totals.n2 > 0;
 
   // Both views count what they put on screen, in the same unit: ledger renders one row per
   // ReconRow, settlement one per settlement plus one per never-settled transaction. Counting
@@ -253,7 +559,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // settlement ladder unable to add up.
   const visibleRowCount = settleCentric ? settleRows.length + neverSettled.length : txVisible.length;
 
-  const grand = totalsOf(txVisible);
+  const grand = totals.grand;
   const txImpact = grand.impact;
   const txAll = txVisible.length === model.included.length;
   const tieOk = !txAll || txImpact === f.discrepancy;
@@ -280,15 +586,14 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
       const cols = EXPORT_COLUMNS.transactionsSettlement;
       const rows = settleRows
         .map((o) => {
-          const parts = o.r.settlements.length;
-          const idx = o.r.settlements.indexOf(o.x);
+          const { part, parts } = o;
           // The ledger-side figures belong to the transaction, so only the line the table
           // prints them on carries them; the rest read 〃 on screen and blank here.
-          const carrier = carrierOf[o.r.id] === idx + 1;
+          const carrier = carrierOf[o.r.id] === part;
           const carried = (v) => (carrier ? v : '');
           return project(cols, {
             [COL.networkRef]: o.x.ref,
-            [COL.part]: parts > 1 ? `${idx + 1}/${parts}` : '',
+            [COL.part]: parts > 1 ? `${part}/${parts}` : '',
             [COL.txnId]: o.r.ledger ? o.r.ledger.id : '',
             [COL.capturedOn]: o.r.ledger ? o.r.ledger.capturedAt : '',
             [COL.settledOn]: o.x.date,
@@ -363,7 +668,7 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   const filterBits = [];
   if (tx.cats.length) filterBits.push('category: ' + tx.cats.map((k) => getCategory(k).label).join(', '));
   if (tx.type !== 'all') filterBits.push('type: ' + (tx.type === 'SALE' ? 'Sales' : 'Refunds'));
-  if (tx.query.trim()) filterBits.push('search: "' + tx.query.trim() + '"');
+  if (query.trim()) filterBits.push('search: "' + query.trim() + '"');
 
   // The band above the grand total names only the columns that row fills. The cells it
   // leaves empty are blanked rather than labelled, and `ref` is renamed: it holds the row
@@ -371,115 +676,172 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
   // the noun already in the value ("18 rows").
   const grandBandLabels = { ...L, id: '', captured: '', merchant: '', ref: 'Count', category: '' };
 
-  const renderRow = (key, cols, cells, row, subline) => {
-    const open = expanded === key;
-    const toggle = () => setExpanded(open ? null : key);
-    return (
-      // Hover lives on the wrapper so the cells, the subline and the expanded
-      // detail all tint together as one row (design lines 540/560, 643/663).
-      <HoverRow key={key} style={rowRule} hoverStyle={{ background: C.hover }}>
-        <div role="row" aria-expanded={open} onClick={toggle} style={{ ...bodyRow(cols, GAP), background: open ? C.hover : 'transparent', alignItems: 'center' }}>
-          {/* Alignment and R5 padding come from the spec by position, so body cells
-              can never drift out of step with the header row. */}
-          {cells.map((c, i) =>
-            React.isValidElement(c)
-              ? React.cloneElement(c, { key: i, style: { ...c.props.style, ...col(LSPEC[i].key) } })
-              : c,
-          )}
-        </div>
-        {subline && React.cloneElement(subline, { onToggle: toggle, flash })}
-        {open && row && <BreakDetail row={row} model={model} />}
-      </HoverRow>
-    );
-  };
+  // ---- column sizing
+  //
+  // The widest string each column's body will have to print, declared for useColumns
+  // rather than left to be walked off the DOM — see the header of styles/columns.js for
+  // why a long table cannot be sized by whichever rows happen to be rendered.
+  //
+  // One pass over the rendered rows, with no formatting inside the loop: money is tracked
+  // as a magnitude and formatted once at the end. That is sound because the money columns
+  // are tabular-nums mono, so width follows digit count and digit count follows magnitude.
+  // The text columns are mono too, so the longest string is the widest one. `category` is
+  // the one proportional exception, and its vocabulary is ten fixed labels, so choosing by
+  // length is at worst a glyph or two out — comfortably inside the slack floor.
+  const candidates = useMemo(() => {
+    const text = new Array(LSPEC.length).fill('');
+    const mag = new Array(LSPEC.length).fill(0);
+    const signed = new Array(LSPEC.length).fill(false);
 
-  const cell = (content, opts = {}) => (
-    <span role="cell" style={{ textAlign: opts.right ? 'right' : 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: opts.color || INK, fontFamily: opts.sans ? SANS : MONO, fontWeight: opts.weight, fontSize: opts.size }} title={opts.title}>
-      {content}
-    </span>
-  );
+    const t = (i, s) => {
+      if (s && s.length > text[i].length) text[i] = s;
+    };
+    const m = (i, v) => {
+      if (v === null || v === undefined) return;
+      const a = Math.abs(v);
+      if (a > mag[i]) mag[i] = a;
+      if (v < 0) signed[i] = true;
+    };
+    // Refunds and Fees print through `neg`, so any non-zero value carries a minus
+    // whatever sign it is stored with; Discrepancy prints through `sfmt`, which signs a
+    // positive too. A sign is a glyph the column has to fit.
+    const mNeg = (i, v) => {
+      m(i, v);
+      if (v) signed[i] = true;
+    };
+    // The four ledger-side figures, identical in both views.
+    const txnMoney = (r) => {
+      m(4, saleOf(r));
+      mNeg(5, refundOf(r));
+      m(7, r.rowExpected);
+      mNeg(9, r.rowImpact);
+    };
+    const txnText = (r, id, captured, ref) => {
+      t(0, id);
+      t(1, captured);
+      t(2, r.merchantId);
+      t(3, ref || '');
+      t(10, getCategory(r.category).label);
+    };
 
-  /** Category cell: severity swatch plus the label in row ink (design lines 553, 656). */
-  const catCell = (category) => (
-    <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: SANS, minWidth: 0 }}>
-      <SevDot color={SEV_COLOR[getCategory(category).sev]} />
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getCategory(category).label}</span>
-    </span>
-  );
+    if (settleCentric) {
+      settleRows.forEach((o) => {
+        txnText(o.r, shortRefOf(o.x.ref), o.x.date, o.x.merchantRef);
+        // The id cell of a multi-part settlement also carries a "2/3" marker, but that
+        // is `data-col-ignore` decoration and deliberately sizes nothing — under this
+        // path it is excluded simply by never being offered as a candidate.
+        txnMoney(o.r);
+        mNeg(6, feesOf(o.x));
+        m(8, o.x.settled);
+      });
+      neverSettled.forEach((r) => {
+        txnText(r, r.ledger.id, 'unsettled', r.ledger.merchantRef);
+        txnMoney(r);
+      });
+    } else {
+      const ledgerRow = (r) => {
+        txnText(
+          r,
+          r.ledger ? r.ledger.id : shortRefOf(r.settlements[0].ref),
+          r.ledger ? r.ledger.capturedAt : 'no ledger',
+          r.ledger ? r.ledger.merchantRef : r.settlements[0].merchantRef,
+        );
+        txnMoney(r);
+        // A row with no payout prints '—' in both, which is narrower than any figure.
+        if (r.settlements.length) {
+          mNeg(6, r.rowFees);
+          m(8, r.rowActual);
+        }
+      };
+      ledgerRows.forEach(ledgerRow);
+      orphanRows.forEach(ledgerRow);
+    }
 
-  /**
-   * Identifier cell: click-to-copy, matching the design's `onCopyId` buttons, plus an
-   * optional "which payout of how many" marker.
-   *
-   * The marker is a sibling of the button, not its content: it is not part of the ref,
-   * and `copyText` must keep copying the bare identifier.
-   *
-   * `data-col-ignore` keeps it out of useColumns' measurement, so two rows in twenty do
-   * not widen this column for all of them. In exchange it gets no reserved width, so the
-   * cell drops `overflow: hidden` to let it use the gutter. That is bounded: even at the
-   * slack floor the marker spills ~7px into a 16px gap, so it cannot reach the next
-   * column. Cells without a marker keep the clip, and with it the ellipsis on long ids.
-   */
-  const idCell = (display, text, label, part) => (
-    <span role="cell" style={{ overflow: part ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-      <CopyButton text={text} label={label} display={display} flash={flash} />
-      {part && (
-        <span data-col-ignore style={{ marginLeft: 6, fontSize: 10, color: C.dim }} title={`Payout ${part} of this transaction`}>
-          {part}
-        </span>
-      )}
-    </span>
-  );
+    // The summary rows are sized here too. The DOM walk used to catch them for free, and
+    // they carry the largest figures in the table — a column fitted only to its body rows
+    // clips the grand total.
+    t(0, 'Grand total');
+    t(3, grandCount);
+    if (split) {
+      t(0, 'Subtotal');
+      t(3, plural(settleCentric ? settleRows.length : ledgerRows.length, 'row'));
+      t(3, plural(settleCentric ? neverSettled.length : orphanRows.length, 'row'));
+    }
+    [totals.grand, totals.t1, totals.t2].forEach((s) => {
+      m(4, s.sales);
+      mNeg(5, s.refunds);
+      mNeg(6, s.fees);
+      m(7, s.expected);
+      m(8, s.settled);
+      mNeg(9, s.impact);
+    });
+    t(11, '▾');
 
-  const renderLedgerRow = (r) => {
-    // null, not 0, when nothing settled, matching BreaksTab: no fee or settlement data
-    // exists, which is distinct from either being genuinely zero. Fees follow Settled —
-    // a row with no payout was never charged, so both read as absent, not as zero. A row
-    // folding several payouts into this sum is flagged by the subline's ref count and by
-    // its category, so the figure itself carries no marker.
-    const actual = r.settlements.length ? r.rowActual : null;
-    const fees = r.settlements.length ? r.rowFees : null;
-    const captured = r.ledger ? r.ledger.capturedAt : 'no ledger';
-    const ref = r.ledger ? r.ledger.merchantRef || '—' : r.settlements[0].merchantRef || '—';
-    const refs = r.settlements.map((x) => x.ref);
-    const refDisplay = refs.length ? shortRefOf(refs[0]) + (refs.length > 1 ? ` +${refs.length - 1}` : '') : '';
-    return renderRow(
-      r.id,
-      COLS,
-      [
-        r.ledger
-          ? idCell(r.ledger.id, r.ledger.id, 'Identifier')
-          : idCell(shortRefOf(r.settlements[0].ref), r.settlements[0].ref, 'Network ref'),
-        // 'no ledger' reads at full label weight, like the date it replaces. A dash is a
-        // placeholder and recedes; a phrase is a statement of fact — here, the most
-        // interesting thing on the row — so it is content and reads like content.
-        cell(captured, { color: INK2, size: 12 }),
-        cell(r.merchantId, { color: INK2, size: 12 }),
-        cell(ref, { color: labelColor(ref), size: 12 }),
-        cell(fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
-        cell(neg(refundOf(r)), { right: true, color: deductionColor(refundOf(r)) }),
-        cell(neg(fees), { right: true, color: deductionColor(fees) }),
-        cell(fmt(r.rowExpected), { right: true, color: figureColor(r.rowExpected) }),
-        cell(fmt(actual), { right: true, color: figureColor(actual) }),
-        cell(sfmt(r.rowImpact), { right: true, weight: 500, color: discColor(r.rowImpact) }),
-        catCell(r.category),
-        cell(expanded === r.id ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
-      ],
-      r,
-      // Gated on the ledger side, not on refs (design: `hasRefSubline: !!r.ledger`).
-      // An unattributed row already shows its network ref in the id cell, so a subline
-      // there would repeat it verbatim; a row with a ledger side but no payout instead
-      // states the absence.
-      r.ledger ? (
-        <Subline
-          text={refs.join(' ')}
-          label={refs.length > 1 ? 'Network refs' : 'Network ref'}
-          display={refs.length ? refDisplay : 'no settlement'}
-          disabled={!refs.length}
-        />
-      ) : null,
-    );
-  };
+    return LSPEC.map((c, i) => (MONEY_COLS.has(i) ? (signed[i] ? '−' : '') + fmt(mag[i]) : text[i]));
+  }, [settleCentric, ledgerRows, orphanRows, settleRows, neverSettled, totals, split, grandCount]);
+
+  // `fontKey` is the view: it is the only thing that changes a column's font here — the
+  // settlement view's "unsettled" cell is sans where the ledger view's date is mono.
+  const { template: COLS, gap: GAP, cell: col, cells: colStyles } = useColumns(tableRef, LSPEC, {
+    candidates,
+    fontKey: tx.view,
+  });
+
+  // One callback for every row, rather than a closure per row: a fresh handler per row
+  // would change on every render and defeat the memo on the row components.
+  const onToggle = useCallback((k) => setExpanded((p) => (p === k ? null : k)), [setExpanded]);
+
+  // The props every body row shares, gathered once so each row takes one stable object's
+  // worth of identity checks rather than eight fresh values.
+  const rowProps = { template: COLS, gap: GAP, colStyles, model, flash, onToggle };
+
+  // ---- windowing
+  //
+  // Both bands of the active view are windowed, each with its own hook instance: they are
+  // separated by a section header and by a subtotal, so they scroll as two runs of rows
+  // rather than one, and each needs its own document offset.
+  const H = useRowMetrics(tableRef, `${tx.view}|${expanded}|${COLS}`);
+  const band1Ref = useRef(null);
+  const band2Ref = useRef(null);
+
+  // At most one row is ever expanded — App holds a single key — so no per-row measurement
+  // cache is needed: the open row is the only one taller than its neighbours.
+  //
+  // Sublines are what make the heights non-uniform otherwise. Every row of the ledger
+  // band carries one (the band is `txVisible.filter(r => r.ledger)` and the subline is
+  // gated on exactly that); a settlement row carries one only when its transaction has a
+  // ledger side; neither trailing band carries any.
+  const rowHeight = useCallback((hasSub, open) => H.base + (hasSub ? H.sub : 0) + (open ? H.detail : 0), [H]);
+  const metricSig = `${H.base}|${H.sub}|${H.detail}`;
+
+  const band1Rows = settleCentric ? settleRows : ledgerRows;
+  const band1 = useWindowedRows({
+    count: band1Rows.length,
+    heightOf: useCallback(
+      (i) => {
+        const o = band1Rows[i];
+        return settleCentric
+          ? rowHeight(!!o.r.ledger, o.x.ref === expanded)
+          : rowHeight(true, o.id === expanded);
+      },
+      [band1Rows, settleCentric, expanded, rowHeight],
+    ),
+    sig: `${tx.view}|1|${band1Rows.length}|${expanded}|${metricSig}`,
+    ref: band1Ref,
+  });
+  const band1Slice = band1Rows.slice(band1.start, band1.end);
+
+  const band2Rows = settleCentric ? neverSettled : orphanRows;
+  const band2 = useWindowedRows({
+    count: band2Rows.length,
+    heightOf: useCallback(
+      (i) => rowHeight(false, band2Rows[i].id === expanded),
+      [band2Rows, expanded, rowHeight],
+    ),
+    sig: `${tx.view}|2|${band2Rows.length}|${expanded}|${metricSig}`,
+    ref: band2Ref,
+  });
+  const band2Slice = band2Rows.slice(band2.start, band2.end);
 
   /**
    * Summary row over the measure columns, positionally matched to LSPEC like the body
@@ -579,15 +941,19 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '0 0 8px 8px', minWidth: 0 }}>
         {/* The design ships two separate tables with distinct names; keep them
             distinguishable to assistive tech even though we render one wrapper. */}
+        {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band
+            has only its visible rows in the DOM, and without this a screen reader would
+            be told the table is fifty rows long. Header row included, hence the +1. */}
         <div
           ref={tableRef}
           role="table"
           aria-label={settleCentric ? 'Transactions by settlement' : 'Transactions by ledger transaction'}
+          aria-rowcount={visibleRowCount + 1}
           style={{ fontSize: 13 }}
         >
           {settleCentric ? (
             <>
-              <div role="row" style={headerRow(COLS, GAP, true)}>
+              <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, true)}>
                 <SortH label={L.id} k="id" tx={tx} setTx={setTx} help={HELP} colStyle={col('id')} />
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} help={HELP} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} help={HELP} colStyle={col('merchant')} />
@@ -602,81 +968,38 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 <span role="columnheader" />
               </div>
               {settleRows.length === 0 && neverSettled.length === 0 && <EmptyState>No settlements match.</EmptyState>}
-              {settleRows.map((o) => {
-                const idx = o.r.settlements.indexOf(o.x);
-                const carrier = carrierOf[o.r.id] === idx + 1;
-                const parts = o.r.settlements.length;
-                // One string for every carried cell, as the design's `inheritTitle` does:
-                // the ledger-side figures belong to the transaction, not to each payout.
-                // Fees and Settled are the only money columns that are per-payout here.
-                const inheritTitle = carrier
-                  ? ''
-                  : `Same ledger transaction — sales, refunds, expected pay and discrepancy are shown on part ${carrierOf[o.r.id]} of ${parts}`;
-                // Carried cell: the figure on the carrier row, 〃 on every later part.
-                const carried = (content, color) =>
-                  cell(carrier ? content : '〃', { right: true, color: carrier ? color || INK : C.dim, title: inheritTitle });
-                return renderRow(
-                  o.x.ref,
-                  COLS,
-                  [
-                    idCell(shortRefOf(o.x.ref), o.x.ref, 'Network ref', parts > 1 ? `${idx + 1}/${parts}` : null),
-                    cell(o.x.date, { color: labelColor(o.x.date), size: 12 }),
-                    cell(o.x.merchantId, { color: INK2, size: 12 }),
-                    cell(o.x.merchantRef || '—', { color: labelColor(o.x.merchantRef), size: 12 }),
-                    carried(fmt(saleOf(o.r)), figureColor(saleOf(o.r))),
-                    carried(neg(refundOf(o.r)), deductionColor(refundOf(o.r))),
-                    // Fees are per-payout, so this cell is never carried — a settlement
-                    // that deducted nothing shows $0.00, not the dash that means "no data".
-                    cell(neg(feesOf(o.x)), { right: true, color: deductionColor(feesOf(o.x)) }),
-                    carried(fmt(o.r.rowExpected), figureColor(o.r.rowExpected)),
-                    cell(fmt(o.x.settled), { right: true, color: figureColor(o.x.settled) }),
-                    cell(carrier ? sfmt(o.r.rowImpact) : '〃', { right: true, weight: carrier ? 500 : 400, color: carrier ? discColor(o.r.rowImpact) : C.dim, title: inheritTitle }),
-                    catCell(o.r.category),
-                    cell(expanded === o.x.ref ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
-                  ],
-                  o.r,
-                  o.r.ledger ? <Subline text={o.r.ledger.id} label="Internal txn id" display={o.r.ledger.id} /> : null,
-                );
-              })}
-              {split && summaryRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totalsOf(sec1), false)}
+              {/* Stands in for the rows above the window, and marks the band's top for
+                  the scroll geometry. Rendered even at zero height so the ref always has
+                  an element and the DOM shape does not change with the row count. */}
+              <div ref={band1Ref} aria-hidden="true" style={{ height: band1.padTop }} />
+              {band1Slice.map((o, i) => (
+                <SettleRow
+                  key={o.x.ref}
+                  o={o}
+                  carrierPart={carrierOf[o.r.id]}
+                  rowIndex={band1.start + i + 2}
+                  open={expanded === o.x.ref}
+                  {...rowProps}
+                />
+              ))}
+              {band1.padBottom > 0 && <div aria-hidden="true" style={{ height: band1.padBottom }} />}
+              {split && summaryRow('sub-settled', 'Subtotal', plural(settleRows.length, 'row'), totals.t1, false)}
               {neverSettled.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.ledger.id }} help={BAND_HELP.neverSettled} template={COLS} gap={GAP} col={col}>
                   Never settled — ledger transactions with no payout
                 </SectionHeader>
               )}
-              {neverSettled.map((r) =>
-                renderRow(
-                  r.id,
-                  COLS,
-                  [
-                    // No network ref exists for this row, so the id column carries the
-                    // ledger txn id — its only identifier — rather than a bare dash.
-                    idCell(r.ledger.id, r.ledger.id, 'Identifier'),
-                    cell('unsettled', { color: INK2, sans: true, size: 12 }),
-                    cell(r.merchantId, { color: INK2, size: 12 }),
-                    cell(r.ledger.merchantRef || '—', { color: labelColor(r.ledger.merchantRef), size: 12 }),
-                    cell(fmt(saleOf(r)), { right: true, color: figureColor(saleOf(r)) }),
-                    cell(neg(refundOf(r)), { right: true, color: deductionColor(refundOf(r)) }),
-                    // No payout, so no fees were ever deducted and nothing was settled. Both
-                    // read as absent rather than zero — expected pay is the gross.
-                    cell(neg(null), { right: true, color: deductionColor(null) }),
-                    cell(fmt(r.rowExpected), { right: true, color: figureColor(r.rowExpected) }),
-                    cell(fmt(null), { right: true, color: figureColor(null) }),
-                    cell(sfmt(r.rowImpact), { right: true, weight: 500, color: discColor(r.rowImpact) }),
-                    catCell(r.category),
-                    cell(expanded === r.id ? '▴' : '▾', { right: true, color: C.dim, size: 11 }),
-                  ],
-                  r,
-                  // The txn id now sits in the id cell above, so a subline would repeat it.
-                  null,
-                ),
-              )}
+              <div ref={band2Ref} aria-hidden="true" style={{ height: band2.padTop }} />
+              {band2Slice.map((r, i) => (
+                <NeverSettledRow key={r.id} r={r} rowIndex={settleRows.length + band2.start + i + 2} open={expanded === r.id} {...rowProps} />
+              ))}
+              {band2.padBottom > 0 && <div aria-hidden="true" style={{ height: band2.padBottom }} />}
               {/* "rows", not "settlements": these are the ones with no payout at all. */}
-              {split && summaryRow('sub-never', 'Subtotal', plural(neverSettled.length, 'row'), totalsOf(sec2), false)}
+              {split && summaryRow('sub-never', 'Subtotal', plural(neverSettled.length, 'row'), totals.t2, false)}
             </>
           ) : (
             <>
-              <div role="row" style={headerRow(COLS, GAP, true)}>
+              <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, true)}>
                 <SortH label={L.id} k="id" tx={tx} setTx={setTx} help={HELP} colStyle={col('id')} />
                 <SortH label={L.captured} k="captured" tx={tx} setTx={setTx} help={HELP} colStyle={col('captured')} />
                 <SortH label={L.merchant} k="merchant" tx={tx} setTx={setTx} help={HELP} colStyle={col('merchant')} />
@@ -691,15 +1014,25 @@ export default function TransactionsTab({ model, tx, setTx, expanded, setExpande
                 <span role="columnheader" />
               </div>
               {ledgerRows.length === 0 && orphanRows.length === 0 && <EmptyState>No transactions match.</EmptyState>}
-              {ledgerRows.map(renderLedgerRow)}
-              {split && summaryRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totalsOf(sec1), false)}
+              {/* See the settlement band above: leading spacer doubles as the band's
+                  position marker. */}
+              <div ref={band1Ref} aria-hidden="true" style={{ height: band1.padTop }} />
+              {band1Slice.map((r, i) => (
+                <LedgerRow key={r.id} r={r} rowIndex={band1.start + i + 2} open={expanded === r.id} {...rowProps} />
+              ))}
+              {band1.padBottom > 0 && <div aria-hidden="true" style={{ height: band1.padBottom }} />}
+              {split && summaryRow('sub-ledger', 'Subtotal', plural(ledgerRows.length, 'row'), totals.t1, false)}
               {orphanRows.length > 0 && (
                 <SectionHeader labels={L} overrides={{ id: LABELS.settlement.id }} help={BAND_HELP.unattributed} template={COLS} gap={GAP} col={col}>
                   Unmatched Settlements
                 </SectionHeader>
               )}
-              {orphanRows.map(renderLedgerRow)}
-              {split && summaryRow('sub-orphan', 'Subtotal', plural(orphanRows.length, 'row'), totalsOf(sec2), false)}
+              <div ref={band2Ref} aria-hidden="true" style={{ height: band2.padTop }} />
+              {band2Slice.map((r, i) => (
+                <LedgerRow key={r.id} r={r} rowIndex={ledgerRows.length + band2.start + i + 2} open={expanded === r.id} {...rowProps} />
+              ))}
+              {band2.padBottom > 0 && <div aria-hidden="true" style={{ height: band2.padBottom }} />}
+              {split && summaryRow('sub-orphan', 'Subtotal', plural(orphanRows.length, 'row'), totals.t2, false)}
             </>
           )}
 
