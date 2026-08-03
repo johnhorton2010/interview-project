@@ -108,7 +108,7 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
     return [text[0], text[1], text[2], amount.length >= text[3].length ? amount : text[3], [...reasons], text[5]];
   }, [rows]);
 
-  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC, { candidates });
+  const { template: COLS, gap: GAP, cell, overflows } = useColumns(tableRef, SPEC, { candidates });
 
   // ---- windowing
   const H = useRowMetrics(tableRef, `${expanded}|${COLS}`);
@@ -135,8 +135,11 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
   };
 
   return (
-    <section style={{ background: C.surface, border: '1px dashed #cfd6e0', borderRadius: 8, overflowX: 'auto' }}>
-      <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.borderSoft}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+    <section>
+      {/* header + toolbar. Unlike the other tables the divider under it is kept rather
+          than left to the table card's top border: here the frame is dashed and the
+          divider is a softer solid, so the two are not interchangeable. */}
+      <div style={{ background: C.surface, border: '1px dashed #cfd6e0', borderRadius: '8px 8px 0 0', borderBottom: `1px solid ${C.borderSoft}`, padding: '14px 18px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Quarantined records</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
@@ -146,41 +149,54 @@ export default function QuarantineTab({ model, expanded, setExpanded, flash }) {
         <GhostButton onClick={exportCsv}>Export CSV</GhostButton>
       </div>
 
-      {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band has only
-          its visible rows in the DOM, and without this a screen reader would be told the
-          table is fifty rows long. Header row included, hence the +1. */}
-      <div ref={tableRef} role="table" aria-label="Quarantined Records" aria-rowcount={rows.length + 1} style={{ fontSize: 13 }}>
-        <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP)}>
-          <HeadCell style={cell('side')} help={HELP.side}>Side</HeadCell>
-          <HeadCell style={cell('id')} help={HELP.id}>Identifier</HeadCell>
-          <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
-          <HeadCell style={cell('amount')} help={HELP.amount}>Amount</HeadCell>
-          <HeadCell style={cell('reason')} help={HELP.reason}>Why it was withheld</HeadCell>
-          <span role="columnheader" />
+      {/* A scroll container traps the sticky column header inside its own scroll box, so
+          it appears only once the columns no longer fit — see the same note in
+          TransactionsTab. `borderTop: 0` because the toolbar above keeps the divider. */}
+      <div
+        style={{
+          background: C.surface,
+          border: '1px dashed #cfd6e0',
+          borderTop: 0,
+          borderRadius: '0 0 8px 8px',
+          ...(overflows ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+        }}
+      >
+        {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band has only
+            its visible rows in the DOM, and without this a screen reader would be told the
+            table is fifty rows long. Header row included, hence the +1. */}
+        <div ref={tableRef} role="table" aria-label="Quarantined Records" aria-rowcount={rows.length + 1} style={{ fontSize: 13 }}>
+          <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, !overflows)}>
+            <HeadCell style={cell('side')} help={HELP.side}>Side</HeadCell>
+            <HeadCell style={cell('id')} help={HELP.id}>Identifier</HeadCell>
+            <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
+            <HeadCell style={cell('amount')} help={HELP.amount}>Amount</HeadCell>
+            <HeadCell style={cell('reason')} help={HELP.reason}>Why it was withheld</HeadCell>
+            <span role="columnheader" />
+          </div>
+          {rows.length === 0 && <EmptyState>Nothing quarantined.</EmptyState>}
+          {/* Stands in for the rows above the window, and marks the band's top for the
+              scroll geometry. Rendered even at zero height so the ref always has an element
+              and the DOM shape does not change with the row count. */}
+          <div ref={bandRef} aria-hidden="true" style={{ height: window_.padTop }} />
+          {visible.map((r, i) => (
+            <QuarantineRow
+              key={r.key}
+              r={r}
+              rowIndex={window_.start + i + 2}
+              open={expanded === r.key}
+              template={COLS}
+              gap={GAP}
+              cell={cell}
+              onToggle={onToggle}
+            />
+          ))}
+          {window_.padBottom > 0 && <div aria-hidden="true" style={{ height: window_.padBottom }} />}
         </div>
-        {rows.length === 0 && <EmptyState>Nothing quarantined.</EmptyState>}
-        {/* Stands in for the rows above the window, and marks the band's top for the
-            scroll geometry. Rendered even at zero height so the ref always has an element
-            and the DOM shape does not change with the row count. */}
-        <div ref={bandRef} aria-hidden="true" style={{ height: window_.padTop }} />
-        {visible.map((r, i) => (
-          <QuarantineRow
-            key={r.key}
-            r={r}
-            rowIndex={window_.start + i + 2}
-            open={expanded === r.key}
-            template={COLS}
-            gap={GAP}
-            cell={cell}
-            onToggle={onToggle}
-          />
-        ))}
-        {window_.padBottom > 0 && <div aria-hidden="true" style={{ height: window_.padBottom }} />}
-      </div>
 
-      {/* The clearest place in the report to state the pair: a record withheld for a
-          zero-value amount reads $0.00, one withheld for an omitted amount reads —. */}
-      <TableFooter legend={<GlyphKey keys={['dash', 'zero']} />} />
+        {/* The clearest place in the report to state the pair: a record withheld for a
+            zero-value amount reads $0.00, one withheld for an omitted amount reads —. */}
+        <TableFooter style={{ borderRadius: '0 0 8px 8px' }} legend={<GlyphKey keys={['dash', 'zero']} />} />
+      </div>
     </section>
   );
 }

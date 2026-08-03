@@ -18,10 +18,10 @@ const VIEWPORT_PAD = 8;
  * that each rule out nesting on their own: `measureContent` sizes a column from its
  * header cell's `textContent` (styles/columns.js), so an open tooltip would blow the
  * column out to its own width; its text would join the header button's accessible name;
- * and every table wraps itself in `overflowX: 'auto'` — Summary, Merchants and Quarantine
- * always, Breaks and Transactions at widths where their columns stop fitting — which
- * would clip it at the card edge. A header is also a grid item, so the panel cannot be a
- * sibling either — that would claim a column.
+ * and every table wraps itself in `overflowX: 'auto'` — Summary always, the other four at
+ * widths where their columns stop fitting — which would clip it at the card edge. A
+ * header is also a grid item, so the panel cannot be a sibling either — that would claim
+ * a column.
  */
 function useColumnTip(help) {
   const ref = React.useRef(null);

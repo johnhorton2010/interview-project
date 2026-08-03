@@ -41,6 +41,17 @@ describe('MerchantTable', () => {
     expect(cells[QUARANTINE]).toBe('1');
   });
 
+  it('pins its column header while the page scrolls', () => {
+    // The header sticks to the page viewport, which is only possible because no ancestor
+    // of the table is a scroll container. This table used to sit inside one, and getting
+    // it back would silently unpin the header rather than fail anywhere else.
+    const { table } = renderMerchants();
+    const header = within(table()).getAllByRole('columnheader')[0].closest('[role="row"]');
+
+    expect(header.style.position).toBe('sticky');
+    expect(header.style.top).toBe('56px'); // APP_HEADER_H — under the app header
+  });
+
   describe('breaks-only filter', () => {
     it('drops every merchant without a break and re-totals over what is left', async () => {
       const { table, user } = renderMerchants();

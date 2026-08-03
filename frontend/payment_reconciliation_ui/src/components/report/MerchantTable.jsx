@@ -176,7 +176,7 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
     });
   }, [rows, t, totalLabelText]);
 
-  const { template: COLS, gap: GAP, cell } = useColumns(tableRef, SPEC, { candidates });
+  const { template: COLS, gap: GAP, cell, overflows } = useColumns(tableRef, SPEC, { candidates });
 
   // ---- windowing
   const H = useRowMetrics(tableRef, COLS);
@@ -227,8 +227,9 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
   };
 
   return (
-    <section style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflowX: 'auto', overflowY: 'hidden' }}>
-      <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+    <section>
+      {/* header + toolbar */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px 8px 0 0', borderBottom: 0, padding: '14px 18px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Merchant Rollup</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted }}>
@@ -259,63 +260,77 @@ export default function MerchantTable({ model, nav, mr, setMr, flash }) {
 
       <FilterStrip bits={filterBits} onClear={() => setMr((m) => ({ ...m, query: '', breaksOnly: false }))} />
 
-      {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band has only
-          its visible rows in the DOM, and without this a screen reader would be told the
-          table is fifty rows long. Header row included, hence the +1. */}
-      <div ref={tableRef} role="table" aria-label="Merchant rollup" aria-rowcount={rows.length + 1} style={{ fontSize: 13 }}>
-        <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP)}>
-          <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
-          <HeadCell style={cell('sales')} help={HELP.sales}>Sales</HeadCell>
-          <HeadCell style={cell('refunds')} help={HELP.refunds}>Refunds</HeadCell>
-          <HeadCell style={cell('interchange')} help={HELP.interchange}>Interchg</HeadCell>
-          <HeadCell style={cell('processor')} help={HELP.processor}>Proc</HeadCell>
-          <HeadCell style={cell('fees')} help={HELP.fees}>Fees</HeadCell>
-          <HeadCell style={cell('expected')} help={HELP.expected}>Exp pay</HeadCell>
-          <HeadCell style={cell('settled')} help={HELP.settled}>Settled</HeadCell>
-          <HeadCell style={cell('discrepancy')} help={HELP.discrepancy}>Discrepancy</HeadCell>
-          <HeadCell style={cell('clean')} help={HELP.clean}>Clean</HeadCell>
-          <HeadCell style={cell('breaks')} help={HELP.breaks}>Breaks</HeadCell>
-          <HeadCell style={cell('quarantine')} help={HELP.quarantine}>Quarantine</HeadCell>
+      {/* A scroll container traps the sticky column header inside its own scroll box, so
+          it appears only once the columns no longer fit — see the same note in
+          TransactionsTab. The toolbar above stays out of it, so it never scrolls sideways
+          with the columns. */}
+      <div
+        style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: '0 0 8px 8px',
+          ...(overflows ? { overflowX: 'auto', overflowY: 'hidden' } : null),
+        }}
+      >
+        {/* `aria-rowcount` is the whole table, not the rendered slice: a windowed band has only
+            its visible rows in the DOM, and without this a screen reader would be told the
+            table is fifty rows long. Header row included, hence the +1. */}
+        <div ref={tableRef} role="table" aria-label="Merchant rollup" aria-rowcount={rows.length + 1} style={{ fontSize: 13 }}>
+          <div role="row" aria-rowindex={1} style={headerRow(COLS, GAP, !overflows)}>
+            <HeadCell style={cell('merchant')} help={HELP.merchant}>Merchant</HeadCell>
+            <HeadCell style={cell('sales')} help={HELP.sales}>Sales</HeadCell>
+            <HeadCell style={cell('refunds')} help={HELP.refunds}>Refunds</HeadCell>
+            <HeadCell style={cell('interchange')} help={HELP.interchange}>Interchg</HeadCell>
+            <HeadCell style={cell('processor')} help={HELP.processor}>Proc</HeadCell>
+            <HeadCell style={cell('fees')} help={HELP.fees}>Fees</HeadCell>
+            <HeadCell style={cell('expected')} help={HELP.expected}>Exp pay</HeadCell>
+            <HeadCell style={cell('settled')} help={HELP.settled}>Settled</HeadCell>
+            <HeadCell style={cell('discrepancy')} help={HELP.discrepancy}>Discrepancy</HeadCell>
+            <HeadCell style={cell('clean')} help={HELP.clean}>Clean</HeadCell>
+            <HeadCell style={cell('breaks')} help={HELP.breaks}>Breaks</HeadCell>
+            <HeadCell style={cell('quarantine')} help={HELP.quarantine}>Quarantine</HeadCell>
+          </div>
+
+          {rows.length === 0 && <EmptyState>No merchants match these filters.</EmptyState>}
+
+          {/* Stands in for the rows above the window, and marks the band's top for the
+              scroll geometry. Rendered even at zero height so the ref always has an element
+              and the DOM shape does not change with the row count. */}
+          <div ref={bandRef} aria-hidden="true" style={{ height: window_.padTop }} />
+          {visible.map((m, i) => (
+            <MerchantRow
+              key={m.merchantId}
+              m={m}
+              rowIndex={window_.start + i + 2}
+              template={COLS}
+              gap={GAP}
+              cell={cell}
+              onOpen={openMerchant}
+            />
+          ))}
+          {window_.padBottom > 0 && <div aria-hidden="true" style={{ height: window_.padBottom }} />}
+
+          <div role="row" style={totalRow(COLS, GAP)}>
+            <span role="cell" style={totalLabel}>{totalLabelText}</span>
+            <Num style={cell('sales')} color={INK}>{fmt(t.sales)}</Num>
+            <Num style={cell('refunds')} color={deductionColor(t.refunds)}>{neg(t.refunds)}</Num>
+            <Num style={cell('interchange')} color={deductionColor(t.interchange)}>{neg(t.interchange)}</Num>
+            <Num style={cell('processor')} color={deductionColor(t.processor)}>{neg(t.processor)}</Num>
+            <Num style={cell('fees')} color={deductionColor(t.fees)}>{neg(t.fees)}</Num>
+            <Num style={cell('expected')} color={INK}>{fmt(t.expected)}</Num>
+            <Num style={cell('settled')} color={INK}>{fmt(t.settled)}</Num>
+            <Num style={cell('discrepancy')} color={discColor(t.disc)}>{sfmt(t.disc)}</Num>
+            <Num style={cell('clean')} color={INK}>{t.clean}</Num>
+            <Num style={cell('breaks')} color={INK}>{t.breaks}</Num>
+            <Num style={cell('quarantine')} color={INK}>{t.quar}</Num>
+          </div>
         </div>
-
-        {rows.length === 0 && <EmptyState>No merchants match these filters.</EmptyState>}
-
-        {/* Stands in for the rows above the window, and marks the band's top for the
-            scroll geometry. Rendered even at zero height so the ref always has an element
-            and the DOM shape does not change with the row count. */}
-        <div ref={bandRef} aria-hidden="true" style={{ height: window_.padTop }} />
-        {visible.map((m, i) => (
-          <MerchantRow
-            key={m.merchantId}
-            m={m}
-            rowIndex={window_.start + i + 2}
-            template={COLS}
-            gap={GAP}
-            cell={cell}
-            onOpen={openMerchant}
-          />
-        ))}
-        {window_.padBottom > 0 && <div aria-hidden="true" style={{ height: window_.padBottom }} />}
-
-        <div role="row" style={totalRow(COLS, GAP)}>
-          <span role="cell" style={totalLabel}>{totalLabelText}</span>
-          <Num style={cell('sales')} color={INK}>{fmt(t.sales)}</Num>
-          <Num style={cell('refunds')} color={deductionColor(t.refunds)}>{neg(t.refunds)}</Num>
-          <Num style={cell('interchange')} color={deductionColor(t.interchange)}>{neg(t.interchange)}</Num>
-          <Num style={cell('processor')} color={deductionColor(t.processor)}>{neg(t.processor)}</Num>
-          <Num style={cell('fees')} color={deductionColor(t.fees)}>{neg(t.fees)}</Num>
-          <Num style={cell('expected')} color={INK}>{fmt(t.expected)}</Num>
-          <Num style={cell('settled')} color={INK}>{fmt(t.settled)}</Num>
-          <Num style={cell('discrepancy')} color={discColor(t.disc)}>{sfmt(t.disc)}</Num>
-          <Num style={cell('clean')} color={INK}>{t.clean}</Num>
-          <Num style={cell('breaks')} color={INK}>{t.breaks}</Num>
-          <Num style={cell('quarantine')} color={INK}>{t.quar}</Num>
-        </div>
+        <TableFooter
+          style={{ borderRadius: '0 0 8px 8px' }}
+          left={<span style={{ textWrap: 'pretty' }}>Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy.<br/>A merchant whose records are all quarantined reads N/A across those columns.</span>}
+          legend={<GlyphKey keys={['na']} />}
+        />
       </div>
-      <TableFooter
-        left={<span style={{ textWrap: 'pretty' }}>Quarantined records count only in the Quarantine column — they never touch sales, refunds, fees, expected, settled or discrepancy.<br/>A merchant whose records are all quarantined reads N/A across those columns.</span>}
-        legend={<GlyphKey keys={['na']} />}
-      />
     </section>
   );
 }
